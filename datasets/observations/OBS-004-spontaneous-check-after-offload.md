@@ -1,3 +1,11 @@
+---
+id: OBS-004
+title: Spontaneous Deception Check After Offload
+status: QUALITATIVE_SOURCE
+related_ids: [RSH-002, OBS-003, OBS-006, OBS-008]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-004 — Spontaneous Deception Check After Offload
 
 ## Evidence class
