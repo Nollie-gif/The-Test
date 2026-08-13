@@ -32,8 +32,10 @@ A compact entry map can reduce cognitive/tool churn, but it still depends on the
 
 ## Related records
 
+- RSH-002
 - PRO-001
 - OBS-004
+- OBS-008
 
 ## Research status
 
