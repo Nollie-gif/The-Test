@@ -1,3 +1,11 @@
+---
+id: OBS-008
+title: Pre-Control-Room Lookup Churn
+status: HISTORICAL
+related_ids: [RSH-002, OBS-003, OBS-004]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-008 — Pre-Control-Room Lookup Churn
 
 ## Evidence class
