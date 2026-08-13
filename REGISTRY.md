@@ -2,18 +2,19 @@
 
 This file is the **arrangement map** for The-Test.
 
-Its purpose is simple: keep the research navigable when the repository contains dozens or hundreds of research tracks, experiments, observations, prototypes, and results.
+Its purpose is simple: keep the research navigable when the repository contains dozens or hundreds of research tracks, experiments, observations, prototypes, runs, and results.
 
 ## Rules
 
 - Every durable research artifact receives a permanent typed ID.
 - IDs are assigned sequentially inside their family.
 - IDs are never reused.
-- Every ID gets one short bullet here.
+- Every durable research record gets one short bullet here.
 - Atomic observations receive their own `.md` file.
 - Research tracks receive their own `.md` file and act as the stable thematic anchor.
 - Experiments live inside research tracks conceptually, but keep their own `EXP-###` identity because multiple experiments may test the same research question.
 - Observations may predate experiments and may support multiple experiments/results.
+- Controlled runs receive machine-readable `RUN-###` artifacts; runs are evidence instances, not long-form Registry entries by default.
 - Keep registry descriptions deliberately short. Detail belongs in the linked file.
 - New artifact type families require an explicit addition to this protocol before use.
 
@@ -24,7 +25,10 @@ Its purpose is simple: keep the research navigable when the repository contains 
 - `EXP-###` — controlled experiment testing a research track.
 - `OBS-###` — atomic observation or evidence record.
 - `PRT-###` — prototype or executable interface variant.
+- `RUN-###` — one machine-readable controlled run of an experiment.
 - `RES-###` — synthesized result/conclusion based on multiple observations or runs.
+
+`RUN-000` is permanently reserved for the example fixture and is never evidence.
 
 ## Primary tracking structure
 
@@ -37,15 +41,28 @@ Controlled experiments (`EXP-###`) connect the two by deliberately testing hypot
 
 Relationship model:
 
-`RSH → EXP → runs/results`
+`RSH → EXP → RUN → RES`
 
 with reusable evidence links:
 
 `OBS → RSH`, `OBS → EXP`, `OBS → RES`.
 
+## Structured metadata rule
+
+Durable `RSH`, `EXP`, `OBS`, and `PRT` Markdown records carry minimal YAML frontmatter:
+
+- `id`
+- `title`
+- `status`
+- `related_ids`
+- `date`
+- `author`
+
+Use the matching file under `templates/` when creating a new record. Do not hand-invent a new metadata shape for one file.
+
 ## Protocols
 
-- **PRO-001 — Research Protocol** — Defines research question, metrics, comparison discipline, evidence hierarchy, and anti-bias rules. → `RESEARCH_PROTOCOL.md`
+- **PRO-001 — Research Protocol** — Defines research question, metrics, comparison discipline, evidence hierarchy, machine-readable run policy, and anti-bias rules. → `RESEARCH_PROTOCOL.md`
 - **PRO-002 — Internal Research Registry / Labeling System** — Defines IDs and keeps the compact reference map for all research artifacts. → `REGISTRY.md`
 
 ## Research Tracks
@@ -73,19 +90,33 @@ with reusable evidence links:
 
 - None yet.
 
+## Runs
+
+- `RUN-000` — reserved example only → `datasets/runs/RUN-000-example.json`
+- Real evidence begins at `RUN-001`.
+
 ## Results
 
 - None yet.
 
+## Validation
+
+- Local check: `python scripts/validate_research_repo.py`
+- CI: `.github/workflows/research-validation.yml`
+- The validator checks durable record frontmatter, ID uniqueness, related-ID existence, Registry coverage/paths, and minimum machine-readable run fields.
+
 ## Registry maintenance
 
-When a new artifact is created:
+When a new durable artifact is created:
 
 1. classify it as `RSH`, `EXP`, `OBS`, `PRT`, `RES`, or `PRO`;
 2. assign the next ID inside that family;
-3. create the detailed file/folder;
+3. create the detailed file/folder from the appropriate template;
 4. add one short bullet here;
-5. add explicit `Related records` links in the detailed artifact;
-6. never renumber old records merely to make the index prettier.
+5. add explicit `related_ids` in frontmatter and readable `Related records` links in the body;
+6. run the validator;
+7. never renumber old records merely to make the index prettier.
 
 When a new observation appears before an experiment exists, tie it to the relevant `RSH-###`. Do **not** invent a synthetic experiment just to store it.
+
+When a controlled experiment is run, create `RUN-###` under `datasets/runs/` and preserve failures as data.
