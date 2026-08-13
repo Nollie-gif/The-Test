@@ -1,3 +1,11 @@
+---
+id: OBS-001
+title: False Quicksave Provenance Incident
+status: HISTORICAL
+related_ids: [RSH-001, EXP-001, OBS-002]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-001 — False Quicksave Provenance Incident
 
 ## Evidence class
