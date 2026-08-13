@@ -26,6 +26,7 @@ If `Quicksave` is an agent-facing affordance, it should map to one complete vali
 
 ## Related records
 
+- RSH-001
 - EXP-001
 - OBS-002
 
