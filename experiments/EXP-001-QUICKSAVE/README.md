@@ -1,3 +1,11 @@
+---
+id: EXP-001
+title: Quicksave Environment Comparison
+status: DESIGNED
+related_ids: [RSH-001, OBS-001, OBS-002]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # EXP-001 — Quicksave Environment Comparison
 
 ## Parent research track
