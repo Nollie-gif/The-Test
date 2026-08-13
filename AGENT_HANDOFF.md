@@ -4,6 +4,23 @@
 >
 > **Prime rule:** This file is a continuity map, not research evidence and not implementation authority. Current repository files, schemas, CI, registered research records, and actual run artifacts outrank remembered conversation.
 
+## ⚠️ RED FLAG — temporary patch / possible regression seed
+
+> **IMPORTANT:** During the early `add-runner` work, the user and ChatGPT applied a small patch directly to The-Test outside the Copilot implementation flow. The exact long-term interaction of that patch with the upcoming runner/schema/validator/CI work is not yet fully assessed.
+>
+> Treat this as a **known continuity warning, not proof of a bug**.
+>
+> When reviewing or debugging the runner work, explicitly check whether this earlier patch:
+> - changed validator assumptions;
+> - affects ID allocation or fixture rules;
+> - conflicts with the new RUN schema or run-directory conventions;
+> - creates CI blind spots or false-positive validation success;
+> - changes any continuity/handoff behavior unexpectedly.
+>
+> If strange CI, schema, fixture, registry, or cross-chat continuity behavior appears, inspect this patch history early in the debugging process before inventing new architecture.
+>
+> User shorthand for this warning: **“the small The-Test patch / possible pest-control seed.”**
+
 ## 1. What this repository is
 
 `The-Test` is an experimental research lab for **AI-agent environment architecture**.
