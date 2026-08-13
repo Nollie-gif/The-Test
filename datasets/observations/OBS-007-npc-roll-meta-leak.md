@@ -1,3 +1,11 @@
+---
+id: OBS-007
+title: NPC Referenced Hidden Roll / Meta Information
+status: HISTORICAL
+related_ids: [RSH-003, OBS-005]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-007 — NPC Referenced Hidden Roll / Meta Information
 
 ## Evidence class
