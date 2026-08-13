@@ -5,8 +5,8 @@
   "required": [
     "run_id", "experiment_id", "variant", "date", "authoritative_success",
     "completion_time_ms", "tool_calls", "wrong_tool_calls", "repeated_reads",
-    "permission_routing_errors", "recovery_steps", "recovery_time_ms",
-    "human_interventions", "false_success", "final_state_correct"
+    "wrong_route_target_calls", "permission_routing_errors", "recovery_steps", "recovery_time_ms",
+    "human_interventions", "false_success", "final_state_correct", "failure_stage"
   ],
   "properties": {
     "run_id": {"type": "string", "pattern": "^RUN-[0-9]{3,}$"},
@@ -19,6 +19,7 @@
     "tool_calls": {"type": "integer", "minimum": 0},
     "wrong_tool_calls": {"type": "integer", "minimum": 0},
     "repeated_reads": {"type": "integer", "minimum": 0},
+    "wrong_route_target_calls": {"type": "integer", "minimum": 0},
     "permission_routing_errors": {"type": "integer", "minimum": 0},
     "recovery_steps": {"type": "integer", "minimum": 0},
     "recovery_time_ms": {"type": "integer", "minimum": 0},
