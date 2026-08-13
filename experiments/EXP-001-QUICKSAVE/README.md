@@ -1,5 +1,9 @@
 # EXP-001 — Quicksave Environment Comparison
 
+## Parent research track
+
+- RSH-001 — Persistence Orchestration Offload
+
 ## Research question
 
 Can the same durable Quicksave task be completed more reliably and efficiently when low-level persistence orchestration is removed from the AI agent and exposed through progressively simpler interfaces?
@@ -32,21 +36,26 @@ The agent receives one stable affordance such as:
 
 `quicksave()`
 
-The backend owns project identity, staging, validation, Git mirror, publication, rollback/abort behavior, and receipt production.
+The backend owns Supabase project identity, branches, staging, validation, Git mirror, publication, rollback/abort behavior, and receipt production.
 
 The agent sees success/failure and structured evidence, not the internal persistence choreography.
 
 ## Primary metrics
 
 - authoritative success rate;
+- authoritative final-state correctness;
 - false-success rate;
-- completion time;
-- recovery time after first error;
+- total completion time;
 - total tool calls;
+- wrong tool calls;
 - unnecessary/repeated reads;
 - wrong-target/routing calls;
+- permission/routing errors;
+- recovery steps after first error;
+- recovery time after first error;
 - human interventions;
 - number of procedural decisions the agent must make;
+- context volume / routing burden when observable;
 - final receipt completeness.
 
 ## Initial hypothesis
