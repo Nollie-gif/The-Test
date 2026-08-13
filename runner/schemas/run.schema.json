@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "The-Test run schema",
+  "type": "object",
+  "required": [
+    "run_id",
+    "exp_id",
+    "variant",
+    "runner_version",
+    "schema_version",
+    "operator",
+    "start_time",
+    "status",
+    "environment_manifest_path",
+    "events_path",
+    "receipt_path"
+  ],
+  "properties": {
+    "run_id": { "type": "string" },
+    "exp_id": { "type": "string" },
+    "variant": { "type": "string", "enum": ["A","B","C"] },
+    "exp_commit": { "type": ["string", "null"] },
+    "runner_version": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "operator": { "type": "string" },
+    "start_time": { "type": "string", "format": "date-time" },
+    "end_time": { "type": ["string", "null"], "format": "date-time" },
+    "status": { "type": "string" },
+    "environment_manifest_path": { "type": "string" },
+    "events_path": { "type": "string" },
+    "receipt_path": { "type": "string" },
+    "artifacts": { "type": "array" },
+    "derived_metrics": { "type": "object" },
+    "notes": { "type": "string" },
+    "success": { "type": ["boolean", "null"] },
+    "failure_stage": { "type": ["string", "null"] }
+  }
+}
