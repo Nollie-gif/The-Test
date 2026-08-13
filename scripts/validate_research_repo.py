@@ -97,8 +97,10 @@ def validate_registry(errors: list[str], ids: set[str]) -> None:
         if record_id not in text:
             fail(errors, f"REGISTRY.md: missing record {record_id}")
 
+    top_level_paths = {"README.md", "REGISTRY.md", "RESEARCH_PROTOCOL.md", "CONTRIBUTING.md"}
     for raw in re.findall(r"`([^`]+)`", text):
-        if not (raw.endswith(".md") or raw.endswith("/")):
+        looks_like_path = "/" in raw or raw in top_level_paths
+        if not looks_like_path or not (raw.endswith(".md") or raw.endswith(".json") or raw.endswith(".yml") or raw.endswith("/")):
             continue
         target = ROOT / raw
         if not target.exists():
