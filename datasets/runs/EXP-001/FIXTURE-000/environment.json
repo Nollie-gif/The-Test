@@ -1,0 +1,9 @@
+{
+  "python_version": "3.11.5",
+  "platform": "Test-OS 1.0",
+  "executable": "/usr/bin/python3",
+  "cwd": "/repo",
+  "packages": {
+    "example-pkg": "0.1.0"
+  }
+}
