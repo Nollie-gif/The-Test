@@ -33,7 +33,10 @@ Compare identical or structurally similar scenes under different context/routing
 
 ## Related records
 
+- RSH-002
 - OBS-003
+- OBS-006
+- OBS-008
 - PRO-001
 
 ## Research status
