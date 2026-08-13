@@ -1,3 +1,11 @@
+---
+id: RSH-001
+title: Persistence Orchestration Offload
+status: OPEN
+related_ids: [EXP-001, OBS-001, OBS-002]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # RSH-001 — Persistence Orchestration Offload
 
 ## Research question
