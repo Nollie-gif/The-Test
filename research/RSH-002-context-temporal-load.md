@@ -1,3 +1,11 @@
+---
+id: RSH-002
+title: Context / Temporal Load Offload
+status: OPEN
+related_ids: [OBS-003, OBS-004, OBS-006, OBS-008]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # RSH-002 — Context / Temporal Load Offload
 
 ## Research question
