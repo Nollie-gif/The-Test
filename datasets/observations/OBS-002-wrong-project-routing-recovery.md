@@ -1,3 +1,11 @@
+---
+id: OBS-002
+title: Wrong Supabase Project Routing + Long Recovery
+status: ACTIVE_SOURCE
+related_ids: [RSH-001, EXP-001, OBS-001]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-002 — Wrong Supabase Project Routing + Long Recovery
 
 ## Evidence class
