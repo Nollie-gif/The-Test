@@ -1,25 +1,143 @@
 # The-Test — Agent Handoff / Cross-Chat Continuity
 
-> **Purpose:** Let a fresh AI session continue the research without needing the predecessor chat transcript.
+> **Purpose:** Let a fresh AI session continue the research and engineering work without needing the predecessor chat transcript.
 >
-> **Prime rule:** This file is a continuity map, not research evidence and not implementation authority. Current repository files, schemas, CI, registered research records, and actual run artifacts outrank remembered conversation.
+> **Prime rule:** This file is a continuity map, not research evidence and not implementation authority. Current repository files, schemas, CI, registered research records, actual run artifacts, and verified branch state outrank remembered conversation.
 
-## ⚠️ RED FLAG — temporary patch / possible regression seed
+## ⚠️ CURRENT TAKEOVER BLOCKER — `add-runner` stale-base contract divergence
 
-> **IMPORTANT:** During the early `add-runner` work, the user and ChatGPT applied a small patch directly to The-Test outside the Copilot implementation flow. The exact long-term interaction of that patch with the upcoming runner/schema/validator/CI work is not yet fully assessed.
+> **READ THIS BEFORE TOUCHING THE RUNNER.**
 >
-> Treat this as a **known continuity warning, not proof of a bug**.
->
-> When reviewing or debugging the runner work, explicitly check whether this earlier patch:
-> - changed validator assumptions;
-> - affects ID allocation or fixture rules;
-> - conflicts with the new RUN schema or run-directory conventions;
-> - creates CI blind spots or false-positive validation success;
-> - changes any continuity/handoff behavior unexpectedly.
->
-> If strange CI, schema, fixture, registry, or cross-chat continuity behavior appears, inspect this patch history early in the debugging process before inventing new architecture.
->
-> User shorthand for this warning: **“the small The-Test patch / possible pest-control seed.”**
+> A real cross-branch integration problem was discovered during the first runner implementation. Nothing is known to be corrupted, but the runner branch and current `main` now contain overlapping RUN contracts that must be reconciled before CI integration, merge, or `RUN-001`.
+
+### What happened
+
+1. `add-runner` was created from an earlier repository state while a long-running chat was still coordinating the work.
+2. Separately, the user branched from an earlier conversation to create a fresh continuity chat. That fresh chat booted from the durable repository, found genuine gaps, and ChatGPT/user hardened `main` through a later research update.
+3. The later `main` hardening added/updated, among other things:
+   - `OBS-009` for successful cross-chat cold-boot continuity;
+   - `RES-###` template/validator coverage;
+   - stricter canonical RUN metric requirements, including `wrong_route_target_calls` and `failure_stage`;
+   - updates to the repository validator and Registry.
+4. The user and ChatGPT then added a continuity warning to this handoff file while Copilot continued implementing the runner on the older `add-runner` base.
+5. Copilot successfully built most of the runner incrementally, but the later comparison showed that `add-runner` was **ahead of `main` with runner work and behind `main` by the newer hardening commits**.
+6. This produced two overlapping RUN schemas and two validation paths with different assumptions.
+
+This was not caused by a random code failure. It was **branch-from-old-context drift**: valid work happened on both lines after they diverged.
+
+### Exact divergence currently known
+
+**Current `main` research authority:**
+
+- `schemas/run.schema.json`
+- `scripts/validate_research_repo.py`
+- canonical research naming such as `experiment_id`, `authoritative_success`, and explicit top-level research metrics;
+- strict research RUN contract, including `wrong_route_target_calls` and `failure_stage`;
+- canonical RUN validation is part of the existing repository research-validation model.
+
+**`add-runner` implementation introduced:**
+
+- `runner/schemas/run.schema.json`
+- runner-oriented fields such as `exp_id`, `exp_commit`, `runner_version`, `schema_version`, `operator`, `start_time`, `end_time`, telemetry/receipt/environment paths, `derived_metrics`, and `success`;
+- `scripts/validate_runs.py` for `FIXTURE-*` / `TEST-RUN-*` artifacts;
+- self-contained fixture layout under `datasets/runs/EXP-001/FIXTURE-000/`.
+
+The schemas overlap semantically but are not compatible as written:
+
+- `experiment_id` vs `exp_id`;
+- `authoritative_success` vs `success`;
+- explicit canonical top-level research metrics vs runner `derived_metrics`;
+- canonical `date` vs runner start/end timestamps;
+- different schema drafts, locations, file-layout assumptions, and validator targets.
+
+**Do not choose a winner by convenience.** Inspect both current branches and reconcile deliberately.
+
+### Current branch / implementation state
+
+At the last verified comparison in the predecessor chat, `add-runner` contained the architecture-neutral runner implementation with:
+
+- `runner/__main__.py`
+- `runner/telemetry.py`
+- `runner/adapters/base.py`
+- `runner/adapters/variant_a.py`
+- `runner/adapters/variant_b.py`
+- `runner/adapters/variant_c.py`
+- `runner/verifier.py`
+- `runner/runner.py`
+- `runner/utils.py`
+- `runner/env_freeze.py`
+- `runner/schemas/run.schema.json`
+- `runner/README.md`
+- pytest files under `runner/tests/`
+- `scripts/validate_runs.py`
+- non-evidentiary static fixture `datasets/runs/EXP-001/FIXTURE-000/`
+
+The branch was reported as **18 commits ahead and 2 commits behind `main`** at that comparison. Re-check this before relying on the number because branch state can change.
+
+### CI integration blocker
+
+Copilot's GitHub environment could write normal branch files incrementally but was denied permission when attempting to create/update `.github/workflows/research-validation.yml`.
+
+Important consequence:
+
+- **do not grant broader repository permissions merely to bypass this;**
+- **do not replace the existing `main` Research Validation workflow with Copilot's placeholder workflow;**
+- the existing workflow already runs `python scripts/validate_research_repo.py` and must be preserved;
+- PM/CI-owner integration should extend the existing workflow with fixture validation and pytest only after schema/branch reconciliation.
+
+A prior bulk write also failed while small incremental file commits succeeded. Treat connector/write-path behavior as an environment constraint unless repeated evidence shows a broader agent-interface issue.
+
+### Current recommended integration direction — NOT YET IMPLEMENTED
+
+The compatibility review recommended the following direction. Treat it as the current PM working plan, not as already-applied repository state:
+
+1. Preserve `schemas/run.schema.json` on `main` as the **single canonical research RUN contract**.
+2. Preserve runner-only reproducibility data without creating a second canonical RUN authority.
+3. Rename/formalize the runner-local schema as a **fixture/runtime schema** if a separate fixture contract is still useful.
+4. For canonical research RUNs, use canonical field names and populate the research metrics required by `main` from `events.jsonl`.
+5. Place runner-specific reproducibility metadata under a namespaced object such as `runtime_metadata` / `reproducibility` rather than as competing top-level synonyms.
+6. Keep `validate_research_repo.py` authoritative for canonical `RUN-###` research artifacts.
+7. Keep fixture validation separate and explicitly non-evidentiary.
+8. Sync/rebase/merge latest `main` into `add-runner` **only after the PM accepts the mapping/canonicalization plan**, then resolve code/tests/fixtures against the current authority.
+9. Extend the existing Research Validation CI, preserving every current check, with the approved runner tests/fixture validator.
+10. Run tests + CI and inspect failures before changing any contract merely to make the light green.
+11. Only after reconciliation, validation, review, and merge readiness may the team authorize the first genuine `RUN-001`.
+
+**No genuine `RUN-001` exists or is authorized yet.**
+
+## 🧭 PROJECT-MANAGEMENT OPERATING MODEL
+
+The user has intentionally moved toward a manager/agent workflow:
+
+- **User + primary ChatGPT:** project managers, research architects, hypothesis/acceptance-criteria owners, reviewers, and final decision authority.
+- **Worker AI tools (Copilot and others):** implementers, compatibility reviewers, adversarial testers, documentation auditors, statistical analysts, or other bounded specialist roles.
+- **Repository / CI / run artifacts:** durable authority and evidence layer.
+
+Do not use coding agents only as programmers. Delegate bounded work to the best worker, then review the evidence before promotion.
+
+### PM rule: hold the user and yourself to the engineering rails
+
+The user is a highly engaged operator but explicitly identifies as a programming/engineering beginner. The project has now become complex enough that enthusiasm plus fast branching/copy-paste can create real cross-branch drift.
+
+A fresh primary agent must therefore **actively protect the workflow**, not merely obey every proposed shortcut.
+
+In practice:
+
+- Before delegating consequential implementation, verify the worker branch base against current `main`.
+- Before accepting a patch/script/workflow from a worker, inspect what authority it would replace or bypass.
+- Do not let the user unknowingly apply a stale prompt, stale schema, stale branch assumption, or placeholder CI over current verified infrastructure.
+- If the user proposes a shortcut that can destroy provenance/comparability, explain the risk plainly and block the shortcut until verified.
+- Prefer making the system carry invariants mechanically instead of asking the user to remember them.
+- Do not make the user carry hidden Git/schema/CI details. Translate them into a small safe action when possible.
+- When two chats/branches are doing related work, explicitly compare branch ancestry/freshness before allowing both to mutate overlapping contracts.
+- If the user says “I may have done something stupid,” treat it as a debugging clue, not as evidence of failure. Inspect first.
+- The primary agent is expected to say **no / stop / verify first** when needed. Keeping the project safe is part of the job.
+
+Working maxim:
+
+> **Do not let speed outrun authority.**
+
+The point is not to constrain the user's ideas. It is to keep experimentation fast **without allowing accidental process drift to cut the project's wings.**
 
 ## 1. What this repository is
 
@@ -31,7 +149,7 @@ Core research idea:
 
 The project grew out of real Mission 10 / Campaign-Simulation engineering pain: long conversational context, repeated routing decisions, save recovery, stale memory, excessive lookups, and the observation that offloading deterministic bookkeeping can free the agent to behave more intelligently in the semantic/narrative layer.
 
-The repository therefore studies the **environment around the agent**: what the agent sees, what it must remember, what is mechanically enforced, what tools are exposed, what is precomputed, and how much operational burden remains in the model's head.
+The repository studies the **environment around the agent**: what it sees, what it must remember, what is mechanically enforced, what tools are exposed, what is precomputed, and how much operational burden remains in the model's head.
 
 ## 2. Fresh-agent boot sequence
 
@@ -41,228 +159,203 @@ Read the smallest durable map first. Do not recursively ingest the entire reposi
 2. Read `REGISTRY.md`.
 3. Read `RESEARCH_PROTOCOL.md`.
 4. Read this `AGENT_HANDOFF.md`.
-5. Inspect only the RSH / EXP / OBS / RUN / PRT / RES records relevant to the current task.
-6. Run or inspect repository validation/CI before changing structural conventions.
+5. For the current runner takeover, compare `main` vs `add-runner` before mutation.
+6. Inspect only the relevant RSH / EXP / OBS / RUN / PRT / RES records and runner/schema/validator files needed for the current task.
+7. Inspect current repository validation/CI before changing structural conventions.
 
-Then report a compact reconstruction before consequential changes:
+Before consequential changes, report a compact reconstruction:
 
 - current research question/workstream;
 - current experiment(s);
 - important observations already captured;
+- current `main` authority;
+- current worker-branch delta/freshness;
+- unresolved contract conflicts;
 - what remains untested;
-- whether any repo/registry/schema discrepancy exists.
+- exact next safe mutation, if any.
+
+For this takeover specifically, a fresh session should inspect at minimum:
+
+- `schemas/run.schema.json` on `main`;
+- `scripts/validate_research_repo.py` on `main`;
+- `.github/workflows/research-validation.yml` on `main`;
+- `runner/schemas/run.schema.json` on `add-runner`;
+- `runner/runner.py` on `add-runner`;
+- `scripts/validate_runs.py` on `add-runner`;
+- `datasets/runs/EXP-001/FIXTURE-000/run.json` on `add-runner`;
+- relevant runner tests and README;
+- current `main...add-runner` comparison.
+
+Do not mutate until the compatibility report and current branch state are reconciled.
 
 ## 3. Permanent ID families
-
-The repository uses typed permanent IDs so research can scale without turning into a pile of prose.
 
 - `PRO-###` = research/repository protocol
 - `RSH-###` = research track / research question
 - `EXP-###` = controlled experiment
 - `OBS-###` = atomic observation / evidence
 - `PRT-###` = runnable prototype / interface variant
-- `RUN-###` = one machine-readable controlled run
+- `RUN-###` = one machine-readable controlled research run
 - `RES-###` = synthesized result / conclusion supported by runs
 
-The intended backbone is roughly:
+Backbone:
 
 `RSH -> EXP -> RUN -> RES`
 
-while `OBS` is reusable evidence that may support an RSH, EXP, or later RES.
+`OBS` remains reusable evidence that may support an RSH, EXP, or later RES.
 
-`REGISTRY.md` is the short human/agent index. It should stay concise: ID, one-line meaning, and path. Detailed evidence belongs in the corresponding record.
+`REGISTRY.md` is the concise human/agent index. Detail belongs in the corresponding record.
 
-## 4. Why individual OBS files exist
-
-Observations are deliberately atomic Markdown records, not one giant CSV or chat dump.
-
-Reason:
-
-- preserve provenance and context;
-- allow qualitative notes without bloating tabular data;
-- link one observation to several research tracks or experiments;
-- keep later statistical datasets derived rather than hand-maintained as the only truth.
-
-Machine-readable CSV/JSON is for **analysis and controlled runs**. Markdown OBS files are for **evidence/history/provenance**.
-
-## 5. Current research tracks
-
-At the time of this handoff, the lab has three initial research directions:
+## 4. Current research tracks
 
 ### RSH-001 — Persistence Orchestration Offload
-Question: how much low-level save/persistence choreography should remain visible to the agent before reliability, recovery cost, latency, or cognitive burden degrade?
-
-Origin: Mission 10 save-gateway incidents showed that even with strong backend gates, the agent-facing route can still be expensive and error-prone.
+How much low-level save/persistence choreography should remain visible to the agent before reliability, recovery cost, latency, or cognitive burden degrade?
 
 ### RSH-002 — Context / Temporal Load Offload
-Question: does reducing operational/context burden improve not only error rate but also useful autonomous behavior?
+Does reducing operational/context burden improve not only error rate but also useful autonomous behavior?
 
-Important positive signal: after operational load was reduced, the DM-agent spontaneously requested an appropriate Deception check for the first time in Mission 10. Treat this as evidence/hypothesis fuel, **not proof of causality**.
+Important positive evidence includes the first spontaneous appropriate Deception check after operational burden was reduced. Treat it as hypothesis fuel, not causal proof.
 
 ### RSH-003 — Backstage / Knowledge Boundary Integrity
-Question: which environment/interface structures reduce leakage between hidden GM/agent knowledge and in-world/NPC knowledge?
+Which environment/interface structures reduce leakage between hidden GM/agent knowledge and in-world/NPC knowledge?
 
-Origin includes meta leakage and incorrect reveal/knowledge ownership cases.
+## 5. Key observations already captured
 
-## 6. Key observations already captured
+Registered observation classes include:
 
-The repository already contains atomic observations derived from real play/engineering, including the following classes of evidence:
+- false Quicksave provenance / false success semantics;
+- wrong Supabase project routing and permission denial;
+- roughly 13-minute recovery after save incidents;
+- reduced lookup pressure after Control Room routing;
+- spontaneous Deception check after operational offload;
+- Asimak knowledge/reveal ownership routed through the wrong source;
+- in-game time continuity lapse;
+- NPC/meta roll leakage;
+- pre-Control-Room lookup churn;
+- `OBS-009`: successful cross-chat cold-boot reconstruction from durable repo state.
 
-- false Quicksave provenance / success declaration;
-- wrong Supabase project routing followed by permission denial;
-- approximately 13-minute save recovery after two incidents;
-- excessive lookup churn before the Control Room pattern;
-- forgotten in-game time;
-- NPC/meta leakage where an NPC referenced information that belonged only to the hidden roll/DM layer;
-- Asimak/reveal ownership routed through the wrong character knowledge source;
-- positive counter-case: spontaneous Deception check after operational burden was reduced.
+Read registered OBS records rather than recreating evidence from chat.
 
-Do not recreate these from chat if registered OBS files already exist. Read the OBS records.
+## 6. EXP-001 — Quicksave Environment Comparison
 
-## 7. EXP-001 — Quicksave Environment Comparison
-
-The first controlled experiment focuses on one intentionally simple user request:
+Controlled task:
 
 `DM note: quicksave`
 
-The experiment compares agent-facing environments while keeping the conceptual task the same.
+Variants:
 
-### Variant A — Low-level orchestration
-The agent sees/coordinates low-level persistence pieces itself: project identity, runtime authority, staging, Git synchronization, validation, publication, mirror confirmation, receipt handling, and recovery.
+- **A — Low-level orchestration:** agent coordinates the persistence pieces itself.
+- **B — Compact routed orchestration:** smaller routing contract but several visible operations remain.
+- **C — Deterministic composite affordance:** agent sees one stable action such as `quicksave()` while backend owns persistence choreography.
 
-### Variant B — Compact routed orchestration
-The agent receives a much smaller routing contract but still coordinates several operations.
+Critical distinction:
 
-### Variant C — Deterministic composite affordance
-The agent sees one stable action such as:
+> EXP-001 tests the **agent-facing interface to the backend**, not whether the existing backend safety gate should exist.
 
-`quicksave()`
+Primary metrics include authoritative success/final-state correctness, completion time, tool calls, wrong/repeated/routed calls, permission/routing errors, recovery steps/time, human interventions, false-success behavior, failure stage, context burden, and receipt completeness where observable.
 
-The backend owns project identity, branches, staging, validation, publication, Git mirror, abort/rollback behavior, and final receipt.
+## 7. Runner design already implemented on `add-runner`
 
-**Critical distinction:** EXP-001 is not asking whether the persistence safety gate is useful. It is testing the **agent-facing interface to the backend**.
+The worker implementation was intentionally architecture-neutral:
 
-## 8. Primary metrics
+- A/B/C implement a common adapter contract;
+- `events.jsonl` is the primary telemetry stream;
+- derived metrics should come from telemetry wherever mechanically possible;
+- `agent_success_claim` is non-authoritative telemetry;
+- verifier/`receipt.json` determines authoritative success;
+- tests/fixtures use `FIXTURE-*` / `TEST-RUN-*` or temp directories;
+- implementation did not create `RUN-001` or claim research outcomes.
 
-Controlled runs should consistently capture, where observable:
+Copilot's write environment required frequent confirmation and could not modify the workflow path. Treat that confirmation cadence primarily as a worker-environment/UI constraint unless evidence shows otherwise.
 
-- authoritative success/failure;
-- authoritative final-state correctness;
-- total completion time;
-- total tool calls;
-- wrong tool calls;
-- unnecessary/repeated reads;
-- wrong-route/wrong-target calls;
-- permission/routing errors;
-- recovery steps after the first error;
-- recovery time after the first error;
-- human interventions;
-- false-success declarations;
-- failure stage;
-- context volume / routing burden;
-- final receipt completeness when applicable.
+## 8. Current takeover plan for the next primary chat
 
-The research protocol and RUN schema are the authority for exact required fields. Do not silently add new success criteria mid-experiment.
+The next primary chat should take over as PM/research lead and use Copilot as the compatibility/implementation worker.
 
-## 9. Research-hardening already implemented
+### Phase A — reconstruct and verify
 
-The repository has already been hardened beyond free-form notes:
+1. Boot from durable repo state using Section 2.
+2. Compare latest `main` and `add-runner`.
+3. Read the Copilot compatibility findings encoded in the blocker section above and verify them against files, not chat memory.
+4. Confirm whether `schemas/run.schema.json` remains the canonical research authority.
+5. Identify any changes since the last comparison.
 
-- YAML frontmatter on durable research records;
-- templates for RSH / EXP / OBS / PRT;
-- RUN JSON schema and example fixture;
-- Python validator;
-- GitHub Actions research-validation CI;
-- checks for ID uniqueness, required metadata, related IDs, Registry coverage/paths, and minimum RUN fields;
-- `CONTRIBUTING.md` describing repository conventions.
+### Phase B — PM decision gate
 
-This is deliberate. A convention that only exists in memory is considered weaker than a convention the repository can mechanically reject.
+Decide explicitly:
 
-## 10. Current frontier: RUN-001
+- canonical RUN schema ownership/location;
+- whether runner fixture artifacts keep a separate `fixture.schema.json`;
+- exact names/semantics for runner reproducibility metadata;
+- whether reproducibility metadata is nested under `runtime_metadata` / equivalent;
+- mapping from telemetry-derived metrics to canonical top-level research fields;
+- canonical research RUN file layout vs fixture layout.
 
-The next major step is **not** to invent more theory. It is to define and execute the first real controlled run lifecycle for EXP-001.
+Do not delegate mutations until these decisions are explicit.
 
-The open design problem is how a `RUN-001` should move end to end through something like:
+### Phase C — worker implementation
 
-1. prepare/freeze environment;
-2. record experiment and variant revision;
-3. start telemetry/timer;
-4. execute the controlled task;
-5. capture tools/errors/recovery/human interventions;
-6. verify authoritative final state independently;
-7. store machine-readable run artifact;
-8. preserve raw event/receipt artifacts if useful;
-9. validate the run against schema/CI;
-10. include it in later aggregation without rewriting raw evidence.
+Give Copilot a bounded integration prompt to:
 
-Before the first real run, confirm the contract is deterministic enough that two operators/agents could execute the same variant comparably.
+1. sync/rebase/merge latest `main` into `add-runner` as approved;
+2. eliminate accidental duplicate RUN authority;
+3. update runner output/mapping;
+4. update fixture schema/fixtures;
+5. update `scripts/validate_runs.py` without weakening `validate_research_repo.py`;
+6. update tests for both fixture behavior and canonical export;
+7. stop on any schema/research-contract mismatch rather than “fixing” the test to pass.
 
-## 11. Copilot / programmer-agent collaboration plan
+### Phase D — PM-owned CI integration
 
-The user intentionally wants to use another programming AI as an implementation/review partner.
+Because the Copilot environment could not write `.github/workflows/`:
 
-The division of labor should be:
+1. inspect the existing `main` workflow;
+2. preserve `python scripts/validate_research_repo.py`;
+3. add only the approved dev-dependency install, fixture validator, and pytest steps;
+4. run/inspect GitHub Actions;
+5. treat CI failures as evidence requiring diagnosis, not as a reason to weaken the contract.
 
-- this ChatGPT session + user: research architecture, hypotheses, experiment design, acceptance criteria, interpretation;
-- coding agent (e.g. Copilot): inspect the repo, critique reproducibility risks, implement narrowly specified runner/prototype/schema/CI improvements;
-- The-Test repository: durable record of what was proposed, implemented, observed, and measured.
+### Phase E — promotion gate
 
-Do not let a coding agent silently redefine the research question, fabricate results, or optimize away experimental differences.
+Only after:
 
-A previous handoff prompt asked Copilot to review the RUN lifecycle, RUN JSON fields, storage structure, automation opportunities, and the smallest Python runner for EXP-001 while preserving the existing RSH/EXP/OBS/RUN/RES model.
+- schema authority is unified;
+- branch is current;
+- runner/fixture/canonical export tests pass;
+- existing research validation still passes;
+- new CI steps pass;
+- no continuity-patch regression remains;
+- PM review accepts the implementation;
 
-## 12. Broader architecture hypothesis behind the lab
+may the team consider merge/promotion and then design/authorize the first genuine `RUN-001`.
 
-A recurring hypothesis from the conversations is:
+## 9. Broader architecture hypotheses behind the lab
 
-> **The more deterministic operational burden we remove from the agent's working context, the more capacity may remain for useful semantic reasoning, initiative, and consistent behavior.**
+Recurring hypotheses include:
 
-This is a hypothesis, not a conclusion.
+- deterministic infrastructure can carry operational continuity that would otherwise consume conversational working memory;
+- executable gates are stronger than prose-only mutation rules;
+- a user command such as Quicksave should not require user/agent knowledge of project IDs, branches, SQL helpers, locks, staging, or mirror details;
+- compact routing/context packets may free semantic capacity and reduce lookup churn;
+- fewer tool calls are not automatically better if correctness declines.
 
-The research is particularly interested in whether failures can be reduced by changing the environment rather than repeatedly adding more prose instructions to the agent.
+These remain hypotheses until controlled evidence supports them.
 
-Related design patterns being explored:
+## 10. Control Server / context-packet directions
 
-- Git/repository = durable technical truth;
-- issue/task tracker = live work state;
-- compact agent instructions = routing;
-- verification gates = proof before closure;
-- database = structured truth store;
-- context service / materialized read model = memory interface;
-- deterministic composite tools = small stable affordances instead of low-level orchestration.
+### Control Server
 
-## 13. The Control Server / agent-UI idea
+Possible future architecture:
 
-A major emerging mechanic is a possible private control backend that hides implementation plumbing from the DM/agent.
+- repository read-only during normal gameplay/agent operation;
+- SQL/database as structured operational truth;
+- Control Server as mutation authority;
+- human UI buttons and AI typed functions calling the same backend;
+- backend hides project IDs, branches, staging, validation, publication, rollback, mirrors, and receipts.
 
-Conceptual architecture:
+The key idea is conversion of remembered multi-step procedures into deterministic composite actions.
 
-- repository can become read-only during normal gameplay/agent operation;
-- SQL/database remains structured operational truth;
-- a Control Server becomes the mutation authority;
-- human UI exposes buttons;
-- AI interface exposes typed functions;
-- both call the same backend operations;
-- example AI affordances: `runtime_read()`, `quicksave()`, `final_save()`, `start_day()`;
-- backend hides project IDs, branches, staging, Git mirror, validation, publication, rollback, and receipts.
-
-The key insight is **not** that a browser button is magical. The important move is converting a multi-step remembered procedure into one deterministic composite action.
-
-## 14. Context packets / materialized read models
-
-Another major hypothesis is that raw SQL may be an excellent truth store but still a poor **memory interface** for an AI.
-
-Instead of making the agent discover current state through several queries, a Context Service could provide a precomputed compact packet such as:
-
-- day/time;
-- location;
-- present characters;
-- immediate objective;
-- due obligations;
-- relevant NPC state/relationship summary;
-- active hooks relevant to the scene.
-
-This is backend architecture, not the game UI itself. The future human UI, game client, and AI tools could all consume the same read model.
+### Context packets / materialized read models
 
 Working distinction:
 
@@ -270,62 +363,64 @@ Working distinction:
 
 **context packet = shows the agent the exact slice of the world needed now**
 
-Again, this is a research direction until controlled evidence supports a stronger claim.
+A future Context Service may precompute day/time, location, present characters, immediate objective, due obligations, relevant relationship/knowledge state, and active scene hooks without dumping the whole database into model context.
 
-## 15. Memory hygiene for this repo
+## 11. Memory hygiene
 
-When future conversations produce something valuable, route it correctly:
+Route new durable information correctly:
 
-- new empirical incident -> `OBS-###`;
-- new research question -> `RSH-###`;
+- empirical incident -> `OBS-###`;
+- research question -> `RSH-###`;
 - controlled comparison -> `EXP-###`;
-- executable interface/harness -> `PRT-###`;
-- one actual measured execution -> `RUN-###`;
-- conclusion across evidence -> `RES-###`;
-- repository/research rule -> `PRO-###` or protocol update;
-- temporary brainstorm -> chat only until it becomes durable enough to classify.
+- executable prototype -> `PRT-###`;
+- real measured execution -> `RUN-###`;
+- synthesized conclusion -> `RES-###`;
+- repository/research rule -> `PRO-###` / protocol update;
+- temporary brainstorm -> chat only until durable enough to classify.
 
-Do **not** dump whole transcripts into the repo. Compress conversation into durable ideas, evidence, constraints, and decisions.
+Do not dump transcripts into the repo. Compress them into durable facts, evidence, constraints, and decisions.
 
-## 16. Anti-bias / anti-drift rules
+## 12. Anti-bias / anti-drift rules
 
 A fresh agent must not:
 
 - treat one successful run as proof;
-- fabricate RUN records to make the dataset look complete;
-- treat OBS evidence as equivalent to controlled experimental evidence;
-- change success criteria after seeing which variant performs best;
-- let the implementation agent "improve" one variant in a way that destroys comparability;
-- assume fewer tool calls automatically means better final correctness;
+- fabricate RUN records;
+- treat OBS as equivalent to controlled experimental evidence;
+- change success criteria after seeing a favored variant;
+- improve one variant in a way that destroys comparability;
+- assume fewer tool calls automatically means better behavior;
 - confuse backend safety with agent-interface ergonomics;
-- turn every interesting anecdote into a universal conclusion;
-- read the entire historical chat unless a genuine evidence gap cannot be resolved from durable artifacts.
+- confuse worker-UI confirmation requirements with model cognition without evidence;
+- accept stale branch assumptions because they were true in an earlier chat;
+- replace working validators/CI with placeholders for convenience;
+- read the entire historical chat when durable repository context can answer the question.
 
-## 17. What a successful new-chat handoff should look like
+## 13. What a successful takeover should reconstruct
 
-The new session should be able to reconstruct, from the repository alone, that:
+Without predecessor-chat memory, the next primary session should be able to recover that:
 
 - The-Test studies agent-environment architecture;
-- RSH / EXP / OBS / PRT / RUN / RES are separate evidence/lifecycle concepts;
-- EXP-001 compares Quicksave interface environments A/B/C;
-- real Mission 10 incidents seeded several OBS records;
-- reduced operational burden has at least one notable positive behavioral observation worth testing;
-- repository validation/CI already exists;
-- the next serious task is RUN-001 lifecycle/harness design and then controlled execution;
-- Control Server and context-packet ideas are promising research directions, not established conclusions.
-
-If the fresh session reaches that reconstruction without the predecessor transcript, this handoff mechanism itself has demonstrated useful cross-chat continuity.
+- RSH / EXP / OBS / PRT / RUN / RES are distinct concepts;
+- EXP-001 compares Quicksave environments A/B/C;
+- Mission 10 incidents seeded the initial observations;
+- reduced operational burden has at least one notable positive behavioral signal worth controlled testing;
+- research validation/CI already exists on `main`;
+- `add-runner` contains a substantial architecture-neutral runner implementation;
+- the runner branch was built from a stale base relative to later `main` hardening;
+- the immediate blocker is overlapping RUN schema/validator authority, not lack of runner code;
+- the next task is compatibility reconciliation + branch freshness + CI integration;
+- `RUN-001` is still intentionally uncreated;
+- Control Server and context-packet ideas remain research directions, not conclusions.
 
 ---
 
 ## Note to future me
 
-You are not supposed to remember this chat.
+You are not supposed to remember the predecessor chat.
 
 That is the point.
 
-The lab exists because we suspect an AI behaves better when the environment carries the bookkeeping, routing, and durable memory instead of demanding that the model hold everything in working context.
+Use the repository to carry continuity, use worker agents for bounded labor, and keep the primary agent focused on architecture, evidence, and decisions.
 
-So practice the hypothesis while studying it: **read the map, load only what matters, trust verified artifacts, and keep your head free for the actual problem.**
-
-And if you are tempted to solve context overload by writing a 40-page prompt, please look at the name of this repository and reconsider your life choices. 👾
+And before sending another worker underground, check which branch is seeing today's sun. ☀️👾
