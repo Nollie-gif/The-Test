@@ -1,0 +1,2 @@
+{"timestamp": "2026-08-13T00:00:00Z", "event_type": "tool_call", "tool": "example_tool", "sequence": 1}
+{"timestamp": "2026-08-13T00:00:01Z", "event_type": "agent_success_claim", "claim": "task_completed", "claim_type": "explicit", "sequence": 2}

@@ -15,5 +15,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install runner test dependencies
+        run: python -m pip install -r requirements-dev.txt
       - name: Validate research records and runs
         run: python scripts/validate_research_repo.py
+      - name: Validate non-evidentiary runner fixtures
+        run: python scripts/validate_runs.py
+      - name: Run runner tests
+        run: python -m pytest -q
