@@ -11,6 +11,7 @@ RECORD_GLOBS = [
     "experiments/EXP-*/README.md",
     "datasets/observations/OBS-*.md",
     "prototypes/PRT-*.md",
+    "results/RES-*.md",
 ]
 REQUIRED = {"id", "title", "status", "related_ids", "date", "author"}
 ID_RE = re.compile(r"^(RSH|EXP|OBS|PRT|RES)-\d{3,}$")
@@ -97,7 +98,7 @@ def validate_registry(errors: list[str], ids: set[str]) -> None:
         if record_id not in text:
             fail(errors, f"REGISTRY.md: missing record {record_id}")
 
-    top_level_paths = {"README.md", "REGISTRY.md", "RESEARCH_PROTOCOL.md", "CONTRIBUTING.md"}
+    top_level_paths = {"README.md", "REGISTRY.md", "RESEARCH_PROTOCOL.md", "CONTRIBUTING.md", "AGENT_HANDOFF.md"}
     for raw in re.findall(r"`([^`]+)`", text):
         looks_like_path = "/" in raw or raw in top_level_paths
         if not looks_like_path or not (raw.endswith(".md") or raw.endswith(".json") or raw.endswith(".yml") or raw.endswith("/")):
@@ -111,8 +112,8 @@ def validate_runs(errors: list[str]) -> None:
     required = {
         "run_id", "experiment_id", "variant", "date", "authoritative_success",
         "completion_time_ms", "tool_calls", "wrong_tool_calls", "repeated_reads",
-        "permission_routing_errors", "recovery_steps", "recovery_time_ms",
-        "human_interventions", "false_success", "final_state_correct",
+        "wrong_route_target_calls", "permission_routing_errors", "recovery_steps", "recovery_time_ms",
+        "human_interventions", "false_success", "final_state_correct", "failure_stage",
     }
     run_ids: set[str] = set()
     exp_ids = {str(parse_frontmatter(p, [])["id"]) for p in ROOT.glob("experiments/EXP-*/README.md")}
