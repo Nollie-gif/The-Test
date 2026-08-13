@@ -24,21 +24,35 @@ The research lineage comes from real Mission 10 observations: operational bookke
 
 ## Repository map
 
-- `RESEARCH_PROTOCOL.md` — research method, metrics, comparison rules, and anti-bias rules.
+- `RESEARCH_PROTOCOL.md` — research method, metrics, comparison rules, evidence hierarchy, and anti-bias rules.
 - `REGISTRY.md` — central internal labeling/index system. Start here when locating research artifacts.
+- `research/` — one Markdown record per durable research track/question (`RSH-###`).
 - `experiments/` — one folder per controlled experiment (`EXP-###`).
-- `datasets/observations/` — one Markdown record per real or synthetic observation (`OBS-###`).
+- `datasets/observations/` — one Markdown record per atomic real/synthetic observation (`OBS-###`).
 - `prototypes/` — implementation prototypes used by controlled variants.
 
 ## ID families
 
 - `PRO-###` — protocol or methodology record.
-- `EXP-###` — controlled experiment.
+- `RSH-###` — durable research track/question.
+- `EXP-###` — controlled experiment inside one or more research tracks.
 - `OBS-###` — atomic observation/evidence record.
 - `PRT-###` — prototype/interface implementation.
-- `RES-###` — synthesized result or conclusion derived from multiple observations.
+- `RES-###` — synthesized result or conclusion derived from multiple observations/runs.
 
 IDs are permanent. A file may be superseded or corrected, but IDs are never recycled.
+
+## Evidence hierarchy
+
+The normal relationship is:
+
+`RSH → EXP → runs/results`
+
+Observations are reusable evidence and can attach directly to the research track and, where applicable, to a specific experiment:
+
+`OBS → RSH`, `OBS → EXP`, `OBS → RES`.
+
+This prevents us from inventing experiments just to store an observation and lets naturally occurring regression cases become future test material.
 
 ## First experiment
 
