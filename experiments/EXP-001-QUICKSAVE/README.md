@@ -2,7 +2,7 @@
 id: EXP-001
 title: Quicksave Environment Comparison
 status: DESIGNED
-related_ids: [RSH-001, OBS-001, OBS-002, PRT-001]
+related_ids: [RSH-001, OBS-001, OBS-002, PRT-001, PRT-002]
 date: 2026-08-13
 author: Nollie + ChatGPT
 ---
@@ -102,6 +102,19 @@ fixtures. Canonical export remains intentionally unimplemented and opt-in.
 and an independent read-back verifier. It rehearses the required proof
 boundary without creating a canonical RUN or claiming verification of Mission
 10 production persistence.
+
+## Pre-registered A/B/C harness
+
+`PRT-002` executes the same PRT-001 state transition behind predeclared A/B/C
+tool contracts. A batch must first record its exact agent model, operator,
+harness source revision, fixed instruction revision, all trial IDs, and a
+balanced three-or-more-repeat order before any trial opens. Its `BATCH-*` /
+`TRIAL-*` artifacts are external, synthetic, and non-canonical; test scripts
+and harness self-checks are not comparative model results.
+
+The next data-collection decision is the exact model identity for a batch. No
+task, prompt, target, metric, success condition, or order policy may change
+after that batch begins.
 
 ## Initial hypothesis
 

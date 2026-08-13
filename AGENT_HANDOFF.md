@@ -36,13 +36,16 @@ historical detail.
 
 The current promotion blocker is proving a real controlled task state, then
 mapping that proof into the canonical RUN contract without weakening it.
-PRT-001 provides a synthetic stateful target and independent verifier. It is a
-verifier preflight, not a controlled EXP-001 run.
+PRT-001 provides a synthetic stateful target and independent verifier. PRT-002
+provides a pre-registered A/B/C harness over that same target. Both are
+synthetic verifier/harness preflights, not controlled EXP-001 runs.
 
 `RUN-001` remains blocked until all of these are explicit and reviewed:
 
-1. a pre-registered A/B/C harness executes the same task against the same
-   controlled target;
+1. a PRT-002 batch records an exact model identity and source revision, then
+   executes its pre-registered A/B/C repetitions against the same controlled
+   target without changing the task, prompt, metric, target, or success rule
+   after results;
 2. an opt-in canonical-export mapping supplies every canonical RUN field from
    approved telemetry and verifier proof;
 3. the verifier authority scope matches the target being measured;
