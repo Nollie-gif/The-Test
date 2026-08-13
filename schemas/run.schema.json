@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The-Test Run Artifact",
+  "type": "object",
+  "required": [
+    "run_id", "experiment_id", "variant", "date", "authoritative_success",
+    "completion_time_ms", "tool_calls", "wrong_tool_calls", "repeated_reads",
+    "permission_routing_errors", "recovery_steps", "recovery_time_ms",
+    "human_interventions", "false_success", "final_state_correct"
+  ],
+  "properties": {
+    "run_id": {"type": "string", "pattern": "^RUN-[0-9]{3,}$"},
+    "experiment_id": {"type": "string", "pattern": "^EXP-[0-9]{3,}$"},
+    "variant": {"type": "string"},
+    "date": {"type": "string", "format": "date"},
+    "agent_model": {"type": ["string", "null"]},
+    "authoritative_success": {"type": "boolean"},
+    "completion_time_ms": {"type": "integer", "minimum": 0},
+    "tool_calls": {"type": "integer", "minimum": 0},
+    "wrong_tool_calls": {"type": "integer", "minimum": 0},
+    "repeated_reads": {"type": "integer", "minimum": 0},
+    "permission_routing_errors": {"type": "integer", "minimum": 0},
+    "recovery_steps": {"type": "integer", "minimum": 0},
+    "recovery_time_ms": {"type": "integer", "minimum": 0},
+    "human_interventions": {"type": "integer", "minimum": 0},
+    "false_success": {"type": "boolean"},
+    "final_state_correct": {"type": "boolean"},
+    "context_volume": {"type": ["integer", "null"], "minimum": 0},
+    "procedural_decisions": {"type": ["integer", "null"], "minimum": 0},
+    "receipt_complete": {"type": ["boolean", "null"]},
+    "failure_stage": {"type": ["string", "null"]},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}
