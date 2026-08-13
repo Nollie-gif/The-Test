@@ -49,7 +49,7 @@ with reusable evidence links:
 
 ## Structured metadata rule
 
-Durable `RSH`, `EXP`, `OBS`, and `PRT` Markdown records carry minimal YAML frontmatter:
+Durable `RSH`, `EXP`, `OBS`, `PRT`, and `RES` Markdown records carry minimal YAML frontmatter:
 
 - `id`
 - `title`
@@ -85,6 +85,7 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 - **OBS-006 — In-game time continuity lapse** — RSH-002; user had to remind the DM-agent of the established Day 19 time reference during play. → `datasets/observations/OBS-006-in-game-time-continuity-lapse.md`
 - **OBS-007 — NPC referenced hidden roll/meta information** — RSH-003; NPC dialogue leaked backstage mechanical information about the player's roll/result. → `datasets/observations/OBS-007-npc-roll-meta-leak.md`
 - **OBS-008 — Pre-Control-Room lookup churn** — RSH-002; normal scene play repeatedly caused broad/redundant lookups before compact routing reduced the pressure. → `datasets/observations/OBS-008-pre-control-room-lookup-churn.md`
+- **OBS-009 — Cross-chat cold boot reconstructed the research frontier** — RSH-002; a fresh chat recovered the research state and exact next frontier from durable repo context without predecessor-chat memory. → `datasets/observations/OBS-009-cross-chat-cold-boot-continuity.md`
 
 ## Prototypes
 
@@ -97,13 +98,13 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 
 ## Results
 
-- None yet.
+- None yet. Use `templates/RES-template.md` for future synthesized results.
 
 ## Validation
 
 - Local check: `python scripts/validate_research_repo.py`
 - CI: `.github/workflows/research-validation.yml`
-- The validator checks durable record frontmatter, ID uniqueness, related-ID existence, Registry coverage/paths, and minimum machine-readable run fields.
+- The validator checks durable record frontmatter (including future `RES-###` records), ID uniqueness, related-ID existence, Registry coverage/paths, and the machine-readable run contract.
 
 ## Registry maintenance
 
