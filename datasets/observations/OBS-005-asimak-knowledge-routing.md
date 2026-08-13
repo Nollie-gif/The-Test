@@ -41,8 +41,10 @@ The goal is not to dump more prose into context. It is to make the critical rela
 
 ## Related records
 
+- RSH-003
 - PRO-001
 - OBS-003
+- OBS-007
 
 ## Research status
 
