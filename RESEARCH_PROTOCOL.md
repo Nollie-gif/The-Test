@@ -45,6 +45,19 @@ For each run, capture at minimum:
 
 The point of the metric set is to measure both **backend correctness** and **agent effort**. A run can be safe and still be ergonomically poor.
 
+## Machine-readable research layer
+
+Human-readable evidence remains Markdown, but repeatable experiment runs must also produce machine-readable artifacts.
+
+- Durable `RSH`, `EXP`, `OBS`, and `PRT` records use minimal YAML frontmatter: `id`, `title`, `status`, `related_ids`, `date`, `author`.
+- Controlled run artifacts use `RUN-###` JSON files under `datasets/runs/`.
+- `schemas/run.schema.json` defines the intended run-data contract.
+- `RUN-000-example.json` is a schema/example fixture only and must never be counted as experimental evidence.
+- Templates under `templates/` are the starting skeletons for new durable research records.
+- `scripts/validate_research_repo.py` and GitHub Actions enforce record identity, required metadata, relationship integrity, Registry coverage, path validity, and minimum run fields.
+
+This automation exists to remove bookkeeping from researcher/agent memory, not to replace research judgment.
+
 ## Research hierarchy
 
 The repository uses three linked evidence layers:
