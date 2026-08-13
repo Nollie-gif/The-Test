@@ -61,6 +61,7 @@ The runtime agent should ideally not know or select the production Supabase proj
 
 ## Related records
 
+- RSH-001
 - EXP-001
 - OBS-001
 
