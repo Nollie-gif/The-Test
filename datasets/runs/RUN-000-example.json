@@ -9,6 +9,7 @@
   "tool_calls": 0,
   "wrong_tool_calls": 0,
   "repeated_reads": 0,
+  "wrong_route_target_calls": 0,
   "permission_routing_errors": 0,
   "recovery_steps": 0,
   "recovery_time_ms": 0,
