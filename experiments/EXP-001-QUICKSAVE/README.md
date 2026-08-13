@@ -2,7 +2,7 @@
 id: EXP-001
 title: Quicksave Environment Comparison
 status: DESIGNED
-related_ids: [RSH-001, OBS-001, OBS-002]
+related_ids: [RSH-001, OBS-001, OBS-002, PRT-001]
 date: 2026-08-13
 author: Nollie + ChatGPT
 ---
@@ -95,6 +95,13 @@ exercise them, but are not controlled evidence.
 
 Telemetry uses the field name `sequence`; `seq` is not accepted for new
 fixtures. Canonical export remains intentionally unimplemented and opt-in.
+
+## Verification preflight prototype
+
+`PRT-001` provides a synthetic stateful target with predeclared expected state
+and an independent read-back verifier. It rehearses the required proof
+boundary without creating a canonical RUN or claiming verification of Mission
+10 production persistence.
 
 ## Initial hypothesis
 
