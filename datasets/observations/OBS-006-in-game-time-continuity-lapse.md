@@ -1,3 +1,11 @@
+---
+id: OBS-006
+title: In-Game Time Continuity Lapse
+status: HISTORICAL
+related_ids: [RSH-002, OBS-003, OBS-004]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-006 — In-Game Time Continuity Lapse
 
 ## Evidence class
