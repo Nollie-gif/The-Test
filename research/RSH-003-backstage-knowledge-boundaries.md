@@ -1,3 +1,11 @@
+---
+id: RSH-003
+title: Backstage / Knowledge Boundary Integrity
+status: OPEN
+related_ids: [OBS-005, OBS-007]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # RSH-003 — Backstage / Knowledge Boundary Integrity
 
 ## Research question
