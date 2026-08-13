@@ -90,6 +90,7 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 ## Prototypes
 
 - **PRT-001 — Controlled Quicksave Target and Independent Verifier** — RSH-001 / EXP-001; synthetic stateful target with predeclared invariants and independent final-state proof. → `prototypes/PRT-001-controlled-quicksave-target.md`
+- **PRT-002 — Pre-registered A/B/C Controlled Quicksave Harness** — RSH-001 / EXP-001; balanced, model-identified synthetic harness over the PRT-001 target. → `prototypes/PRT-002-preregistered-abc-harness.md`
 
 ## Runs
 
