@@ -1,3 +1,11 @@
+---
+id: OBS-005
+title: Asimak Knowledge Ownership / Routing Error
+status: HISTORICAL
+related_ids: [RSH-003, OBS-003, OBS-007]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-005 — Asimak Knowledge Ownership / Routing Error
 
 ## Evidence class
