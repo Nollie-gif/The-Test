@@ -1,22 +1,25 @@
-commit cb33223d5f862d4c3831da9dc34123871a4cd5d9
-Author: Codex <codex@openai.com>
-Date:   Fri Aug 14 00:18:30 2026 +0530
+name: Research Validation
 
-    runner: add fixture-only preflight validation
+on:
+  push:
+    branches: [main]
+  pull_request:
 
-diff --git a/.github/workflows/research-validation.yml b/.github/workflows/research-validation.yml
-index af0a4d1..7eb4dc1 100644
---- a/.github/workflows/research-validation.yml
-+++ b/.github/workflows/research-validation.yml
-@@ -15,5 +15,11 @@ jobs:
-         uses: actions/setup-python@v5
-         with:
-           python-version: "3.11"
-+      - name: Install runner test dependencies
-+        run: python -m pip install -r requirements-dev.txt
-       - name: Validate research records and runs
-         run: python scripts/validate_research_repo.py
-+      - name: Validate non-evidentiary runner fixtures
-+        run: python scripts/validate_runs.py
-+      - name: Run runner tests
-+        run: python -m pytest -q
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runner test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Validate research records and runs
+        run: python scripts/validate_research_repo.py
+      - name: Validate non-evidentiary runner fixtures
+        run: python scripts/validate_runs.py
+      - name: Run runner tests
+        run: python -m pytest -q

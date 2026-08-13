@@ -1,21 +1,9 @@
-commit cb33223d5f862d4c3831da9dc34123871a4cd5d9
-Author: Codex <codex@openai.com>
-Date:   Fri Aug 14 00:18:30 2026 +0530
-
-    runner: add fixture-only preflight validation
-
-diff --git a/datasets/runs/EXP-001/FIXTURE-000/environment.json b/datasets/runs/EXP-001/FIXTURE-000/environment.json
-new file mode 100644
-index 0000000..d8422aa
---- /dev/null
-+++ b/datasets/runs/EXP-001/FIXTURE-000/environment.json
-@@ -0,0 +1,9 @@
-+{
-+  "python_version": "3.11.5",
-+  "platform": "Test-OS 1.0",
-+  "executable": "/usr/bin/python3",
-+  "cwd": "/repo",
-+  "packages": {
-+    "example-pkg": "0.1.0"
-+  }
-+}
+{
+  "python_version": "3.11.5",
+  "platform": "Test-OS 1.0",
+  "executable": "/usr/bin/python3",
+  "cwd": "/repo",
+  "packages": {
+    "example-pkg": "0.1.0"
+  }
+}

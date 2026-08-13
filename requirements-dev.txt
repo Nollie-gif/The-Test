@@ -1,14 +1,2 @@
-commit cb33223d5f862d4c3831da9dc34123871a4cd5d9
-Author: Codex <codex@openai.com>
-Date:   Fri Aug 14 00:18:30 2026 +0530
-
-    runner: add fixture-only preflight validation
-
-diff --git a/requirements-dev.txt b/requirements-dev.txt
-new file mode 100644
-index 0000000..552ad0c
---- /dev/null
-+++ b/requirements-dev.txt
-@@ -0,0 +1,2 @@
-+jsonschema==4.26.0
-+pytest==8.4.2
+jsonschema==4.26.0
+pytest==8.4.2

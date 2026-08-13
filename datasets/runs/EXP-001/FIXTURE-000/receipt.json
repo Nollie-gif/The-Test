@@ -1,20 +1,8 @@
-commit cb33223d5f862d4c3831da9dc34123871a4cd5d9
-Author: Codex <codex@openai.com>
-Date:   Fri Aug 14 00:18:30 2026 +0530
-
-    runner: add fixture-only preflight validation
-
-diff --git a/datasets/runs/EXP-001/FIXTURE-000/receipt.json b/datasets/runs/EXP-001/FIXTURE-000/receipt.json
-new file mode 100644
-index 0000000..d6de343
---- /dev/null
-+++ b/datasets/runs/EXP-001/FIXTURE-000/receipt.json
-@@ -0,0 +1,8 @@
-+{
-+  "fixture_verified": true,
-+  "verifier": "fixture-mock-verifier-0.2",
-+  "verified_at": "2026-08-13T00:00:02Z",
-+  "authoritative": false,
-+  "failure_stage": null,
-+  "details": "fixture verifier: no error condition observed"
-+}
+{
+  "fixture_verified": true,
+  "verifier": "fixture-mock-verifier-0.2",
+  "verified_at": "2026-08-13T00:00:02Z",
+  "authoritative": false,
+  "failure_stage": null,
+  "details": "fixture verifier: no error condition observed"
+}

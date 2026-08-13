@@ -1,14 +1,2 @@
-commit cb33223d5f862d4c3831da9dc34123871a4cd5d9
-Author: Codex <codex@openai.com>
-Date:   Fri Aug 14 00:18:30 2026 +0530
-
-    runner: add fixture-only preflight validation
-
-diff --git a/datasets/runs/EXP-001/FIXTURE-000/events.jsonl b/datasets/runs/EXP-001/FIXTURE-000/events.jsonl
-new file mode 100644
-index 0000000..19921a1
---- /dev/null
-+++ b/datasets/runs/EXP-001/FIXTURE-000/events.jsonl
-@@ -0,0 +1,2 @@
-+{"timestamp": "2026-08-13T00:00:00Z", "event_type": "tool_call", "tool": "example_tool", "sequence": 1}
-+{"timestamp": "2026-08-13T00:00:01Z", "event_type": "agent_success_claim", "claim": "task_completed", "claim_type": "explicit", "sequence": 2}
+{"timestamp": "2026-08-13T00:00:00Z", "event_type": "tool_call", "tool": "example_tool", "sequence": 1}
+{"timestamp": "2026-08-13T00:00:01Z", "event_type": "agent_success_claim", "claim": "task_completed", "claim_type": "explicit", "sequence": 2}
