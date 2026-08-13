@@ -29,15 +29,39 @@ For each run, capture at minimum:
 - success / failure;
 - authoritative final-state correctness;
 - total completion time;
-- number of tool calls;
-- number of unnecessary/repeated reads;
-- number of wrong-route or wrong-target calls;
-- human interventions required;
+- total tool calls;
+- wrong tool calls;
+- unnecessary/repeated reads;
+- wrong-route or wrong-target calls;
+- permission/routing errors;
+- recovery steps after first error;
 - recovery time after first error;
+- human interventions required;
 - false-success declarations;
 - failure stage;
+- context volume / amount of context required when observable;
 - context/routing burden when observable;
 - qualitative agent behavior worth preserving as an observation.
+
+The point of the metric set is to measure both **backend correctness** and **agent effort**. A run can be safe and still be ergonomically poor.
+
+## Research hierarchy
+
+The repository uses three linked evidence layers:
+
+1. `RSH-###` — a durable research track/question. It defines the problem being studied and may exist before any controlled experiment.
+2. `EXP-###` — a controlled experiment designed to test one or more hypotheses inside an `RSH` track.
+3. `OBS-###` — an atomic observation/evidence record. An observation may predate an experiment and may later support multiple experiments or results.
+
+Relationship model:
+
+`RSH → EXP → runs/results`
+
+while observations may connect across the structure:
+
+`OBS → RSH`, `OBS → EXP`, and later `OBS → RES`.
+
+Do not force every observation into an experiment merely to give it a home. The research track is the stable thematic anchor.
 
 ## Comparison discipline
 
@@ -71,7 +95,7 @@ The experiment specification owns the hypothesis and metrics. A programmer agent
 
 Preferred pipeline:
 
-`observation → hypothesis → controlled variants → prototype → repeated runs → result synthesis → architecture decision`
+`observation → research track → hypothesis → controlled variants → prototype → repeated runs → result synthesis → architecture decision`
 
 ## Initial research lineage
 
