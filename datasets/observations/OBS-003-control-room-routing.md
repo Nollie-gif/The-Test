@@ -1,3 +1,11 @@
+---
+id: OBS-003
+title: Control Room Reduced Lookup Pressure
+status: HISTORICAL
+related_ids: [RSH-002, OBS-004, OBS-008]
+date: 2026-08-13
+author: Nollie + ChatGPT
+---
 # OBS-003 — Control Room Reduced Lookup Pressure
 
 ## Evidence class
