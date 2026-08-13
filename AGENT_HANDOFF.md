@@ -23,7 +23,35 @@ The Terra primary session should:
 - refuse or stop a shortcut when it threatens provenance, comparability, validation, or repository authority;
 - keep `RUN-001` blocked until the reconciliation/promotion gate below is complete.
 
-### Last verified takeover snapshot — re-check before mutation
+## ⚠️ CURRENT TAKEOVER BLOCKER — evidence promotion, not runner import
+
+The fixture-runner preflight was integrated into `main` through PR #2 (squash
+commit `bb46b4c60b9265dcf677cb1674f62f65985b9441`). It remains explicitly
+non-evidentiary: it creates only `FIXTURE-*` artifacts and cannot create a
+canonical `RUN-###` record.
+
+`add-runner` remains a stale historical branch. Do not merge or rebase it as a
+shortcut; compare its live ref only if a future task genuinely needs a missing
+historical detail.
+
+The current promotion blocker is proving a real controlled task state, then
+mapping that proof into the canonical RUN contract without weakening it.
+PRT-001 provides a synthetic stateful target and independent verifier. It is a
+verifier preflight, not a controlled EXP-001 run.
+
+`RUN-001` remains blocked until all of these are explicit and reviewed:
+
+1. a pre-registered A/B/C harness executes the same task against the same
+   controlled target;
+2. an opt-in canonical-export mapping supplies every canonical RUN field from
+   approved telemetry and verifier proof;
+3. the verifier authority scope matches the target being measured;
+4. repeat/run policy and model identity are recorded before results are seen.
+
+Never promote a fixture or synthetic proof by filename, convenience, or CI
+success alone.
+
+### Historical takeover snapshot — re-check before mutation
 
 Snapshot verified on 2026-08-13:
 
@@ -49,9 +77,12 @@ The review confirmed the known contract divergence and highlighted these unresol
 
 Current PM working direction: preserve `main:schemas/run.schema.json` as the single canonical **research RUN** authority; keep runner fixture/runtime validation explicitly non-evidentiary; preserve reproducibility detail in sidecar artifacts unless/until PM deliberately changes the canonical schema; create an explicit canonical-export/mapping layer only after metric semantics are approved.
 
-## ⚠️ CURRENT TAKEOVER BLOCKER — `add-runner` stale-base contract divergence
+## 📜 HISTORICAL INTEGRATION BLOCKER — `add-runner` stale-base contract divergence
 
-> **READ THIS BEFORE TOUCHING THE RUNNER.**
+> **Historical context.** This explains why `add-runner` was not merged
+> directly. The fresh-branch fixture integration was completed in PR #2;
+> retain this record to prevent the stale branch from being revived as a
+> shortcut.
 >
 > A real cross-branch integration problem was discovered during the first runner implementation. Nothing is known to be corrupted, but the runner branch and current `main` now contain overlapping RUN contracts that must be reconciled before CI integration, merge, or `RUN-001`.
 
@@ -132,9 +163,13 @@ Important consequence:
 
 A prior bulk write also failed while small incremental file commits succeeded. Treat connector/write-path behavior as an environment constraint unless repeated evidence shows a broader agent-interface issue.
 
-### Current recommended integration direction — NOT YET IMPLEMENTED
+### Historical recommended integration direction — partially completed
 
-Treat the following as the current PM working plan, not as already-applied repository state:
+Treat the following as the original reconciliation plan. Fixture/runtime schema
+separation, metric semantics, and additive CI integration were implemented via
+the fresh-branch PR #2. Canonical export and real-verifier promotion remain
+intentionally blocked; do not treat this historical list as a current mutation
+checklist.
 
 1. Preserve `schemas/run.schema.json` on `main` as the **single canonical research RUN contract**.
 2. Preserve runner-only reproducibility data without creating a second canonical RUN authority.

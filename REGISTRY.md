@@ -89,7 +89,7 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 
 ## Prototypes
 
-- None yet.
+- **PRT-001 — Controlled Quicksave Target and Independent Verifier** — RSH-001 / EXP-001; synthetic stateful target with predeclared invariants and independent final-state proof. → `prototypes/PRT-001-controlled-quicksave-target.md`
 
 ## Runs
 
