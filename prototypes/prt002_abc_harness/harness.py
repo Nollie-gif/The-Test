@@ -18,6 +18,7 @@ import os
 import tempfile
 import time
 import uuid
+from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -84,6 +85,19 @@ def _require_variant(variant: str) -> str:
     return variant
 
 
+def _compact_storage_id(artifact_id: str, *, prefix: str) -> str:
+    """Derive a short, filesystem-safe alias without weakening the recorded ID."""
+
+    if not artifact_id.startswith(prefix):
+        raise HarnessError(f"artifact ID must begin with {prefix!r}")
+    try:
+        identifier = uuid.UUID(artifact_id[len(prefix) :])
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HarnessError("artifact ID must contain a UUID") from exc
+    token = urlsafe_b64encode(identifier.bytes).decode("ascii").rstrip("=")
+    return f"{prefix}{token}"
+
+
 def _repository_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -109,7 +123,8 @@ def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
         encoding="utf-8",
         dir=path.parent,
         delete=False,
-        prefix=f".{path.name}.",
+        # Keep temporary names short for deeply nested external trial paths on Windows.
+        prefix=".tmp.",
         suffix=".tmp",
     ) as temp:
         json.dump(value, temp, ensure_ascii=False, indent=2, sort_keys=True)
@@ -162,6 +177,7 @@ class TrialSpec:
     """One position in an immutable, pre-registered batch schedule."""
 
     trial_id: str
+    storage_id: str
     ordinal: int
     variant: str
     transaction_id: str
@@ -169,6 +185,7 @@ class TrialSpec:
     def as_dict(self) -> dict[str, Any]:
         return {
             "trial_id": self.trial_id,
+            "storage_id": self.storage_id,
             "ordinal": self.ordinal,
             "variant": self.variant,
             "transaction_id": self.transaction_id,
@@ -200,27 +217,32 @@ class PreregisteredBatch:
         schedule = _balanced_schedule(repeats_per_variant)
 
         batch_id = f"BATCH-{uuid.uuid4()}"
-        batch_dir = output_root / batch_id
+        batch_storage_id = _compact_storage_id(batch_id, prefix="BATCH-")
+        batch_dir = output_root / batch_storage_id
         try:
             batch_dir.mkdir(parents=True, exist_ok=False)
         except FileExistsError as exc:
             raise HarnessError(f"batch directory already exists: {batch_dir.name}") from exc
 
-        specs = [
-            TrialSpec(
-                trial_id=f"TRIAL-{uuid.uuid4()}",
-                ordinal=ordinal,
-                variant=variant,
-                transaction_id=str(uuid.uuid4()),
+        specs: list[TrialSpec] = []
+        for ordinal, variant in enumerate(schedule, start=1):
+            trial_id = f"TRIAL-{uuid.uuid4()}"
+            specs.append(
+                TrialSpec(
+                    trial_id=trial_id,
+                    storage_id=_compact_storage_id(trial_id, prefix="TRIAL-"),
+                    ordinal=ordinal,
+                    variant=variant,
+                    transaction_id=str(uuid.uuid4()),
+                )
             )
-            for ordinal, variant in enumerate(schedule, start=1)
-        ]
         instructions = {variant: agent_instruction(variant) for variant in VARIANTS}
         manifest: dict[str, Any] = {
             "artifact_kind": "noncanonical-preregistered-abc-batch",
             "harness_version": HARNESS_VERSION,
             "evidence_status": "synthetic-prototype-only-not-a-RUN",
             "batch_id": batch_id,
+            "batch_storage_id": batch_storage_id,
             "created_at": now_iso(),
             "experiment_id": EXPERIMENT_ID,
             "verification_scope": VERIFICATION_SCOPE,
@@ -248,20 +270,44 @@ class PreregisteredBatch:
         return str(self.manifest["batch_id"])
 
     @property
+    def batch_storage_id(self) -> str:
+        recorded = self.manifest.get("batch_storage_id")
+        expected = _compact_storage_id(self.batch_id, prefix="BATCH-")
+        if recorded != expected:
+            raise HarnessError("batch storage alias does not match the recorded batch ID")
+        return expected
+
+    @property
     def preregistration_digest(self) -> str:
         return str(self.manifest["preregistration_digest"])
 
     @property
     def trial_specs(self) -> tuple[TrialSpec, ...]:
-        return tuple(
-            TrialSpec(
-                trial_id=str(spec["trial_id"]),
-                ordinal=int(spec["ordinal"]),
-                variant=str(spec["variant"]),
-                transaction_id=str(spec["transaction_id"]),
+        specs: list[TrialSpec] = []
+        for spec in self.manifest["trial_specs"]:
+            trial_id = str(spec["trial_id"])
+            storage_id = str(spec["storage_id"])
+            expected_storage_id = _compact_storage_id(trial_id, prefix="TRIAL-")
+            if storage_id != expected_storage_id:
+                raise HarnessError("trial storage alias does not match the recorded trial ID")
+            specs.append(
+                TrialSpec(
+                    trial_id=trial_id,
+                    storage_id=storage_id,
+                    ordinal=int(spec["ordinal"]),
+                    variant=str(spec["variant"]),
+                    transaction_id=str(spec["transaction_id"]),
+                )
             )
-            for spec in self.manifest["trial_specs"]
-        )
+        return tuple(specs)
+
+    def trial_dir(self, spec: TrialSpec) -> Path:
+        """Return the compact on-disk location for one recorded trial."""
+
+        expected_storage_id = _compact_storage_id(spec.trial_id, prefix="TRIAL-")
+        if spec.storage_id != expected_storage_id:
+            raise HarnessError("trial storage alias does not match the recorded trial ID")
+        return self.batch_dir / "trials" / spec.storage_id
 
     def open_trial(self, trial_id: str) -> "ControlledTrial":
         """Create one fresh PRT-001 target using only a pre-registered trial spec."""
@@ -275,7 +321,7 @@ class PreregisteredBatch:
         if spec.trial_id != expected.trial_id:
             raise HarnessError("trials must open in the pre-registered schedule order")
 
-        trial_dir = self.batch_dir / "trials" / spec.trial_id
+        trial_dir = self.trial_dir(spec)
         if trial_dir.exists():
             raise HarnessError("a pre-registered trial may be opened only once")
         trial_dir.mkdir(parents=True)
@@ -328,7 +374,7 @@ class PreregisteredBatch:
         """Keep execution order faithful to the immutable pre-registration."""
         specs = self.trial_specs
         for spec in specs:
-            trial_dir = self.batch_dir / "trials" / spec.trial_id
+            trial_dir = self.trial_dir(spec)
             if not trial_dir.exists():
                 return spec
             if not (trial_dir / "result.json").is_file():

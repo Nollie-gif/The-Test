@@ -135,7 +135,7 @@ def test_driver_runs_one_synthetic_trial_with_fake_transport_and_records_verifie
     assert outcome.result["verifier_proof"]["final_state_correct"] is True
     assert outcome.result["verifier_proof"]["receipt_complete"] is True
 
-    trial_dir = batch.batch_dir / "trials" / batch.trial_specs[0].trial_id
+    trial_dir = batch.trial_dir(batch.trial_specs[0])
     assert (trial_dir / "result.json").is_file()
     assert (trial_dir / DRIVER_OUTCOME_FILENAME).is_file()
     assert not any(path.name.startswith("RUN-") for path in batch.batch_dir.rglob("*"))

@@ -54,6 +54,10 @@ Each trial writes only `BATCH-*` and `TRIAL-*` artifacts to an external output
 directory. The harness explicitly rejects output inside this repository and
 never writes `datasets/runs/`, `RUN-*`, or canonical research data.
 
+The full recorded batch and trial IDs remain UUID-based. Their on-disk
+`BATCH-*` / `TRIAL-*` directory aliases are compact, deterministic encodings
+of those recorded IDs so the external artifacts remain usable on Windows.
+
 The PRT-001 verifier can make a verdict authoritative only for the synthetic
 controlled target. A PRT-002 artifact is therefore **not** Mission 10,
 Supabase, GitHub, production, or canonical EXP-001 evidence.

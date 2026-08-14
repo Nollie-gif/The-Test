@@ -187,7 +187,8 @@ def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
         encoding="utf-8",
         dir=path.parent,
         delete=False,
-        prefix=f".{path.name}.",
+        # Keep temporary names short for deeply nested external trial paths on Windows.
+        prefix=".tmp.",
         suffix=".tmp",
     ) as temporary:
         json.dump(value, temporary, ensure_ascii=False, indent=2, sort_keys=True)
@@ -215,7 +216,7 @@ def _verify_self_digest(payload: Mapping[str, Any], field: str, label: str) -> N
 
 def _next_spec(batch: PreregisteredBatch):
     for spec in batch.trial_specs:
-        trial_dir = batch.batch_dir / "trials" / spec.trial_id
+        trial_dir = batch.trial_dir(spec)
         if not trial_dir.exists():
             return spec
         if not (trial_dir / "result.json").is_file():
