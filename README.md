@@ -22,6 +22,9 @@ A strong agent may behave substantially better when infrastructure behaves like 
 
 The research lineage comes from real Mission 10 observations: operational bookkeeping moved away from conversational memory, save authority was converted from prose rules into executable gates, and the DM Control Room reduced unnecessary repository lookups by routing the agent toward the smallest authoritative source.
 
+## Public scope and independence
+
+This repository documents reproducible research methods and sanitized findings only. It contains no raw research outputs or private operational data. The project is independent and is not affiliated with, endorsed by, or sponsored by any model provider.
 ## Repository map
 
 - `RESEARCH_PROTOCOL.md` — research method, metrics, comparison rules, evidence hierarchy, and anti-bias rules.

@@ -121,6 +121,7 @@ def test_driver_runs_one_synthetic_trial_with_fake_transport_and_records_verifie
     outcome = run_next_trial(batch, transport)
 
     assert len(transport.payloads) == 4
+    assert all(payload["store"] is False for payload in transport.payloads)
     assert outcome.terminal_error is None
     assert outcome.model_response_ids == (
         "resp-read-prepared",
