@@ -1,4 +1,5 @@
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -56,6 +57,38 @@ def test_batch_is_fully_preregistered_with_balanced_order_and_model_identity(tmp
     assert [spec.variant for spec in batch.trial_specs] == list("ABCBCACAB")
     assert manifest["preregistration_digest"]
     assert "RUN-001" not in manifest["batch_id"]
+
+
+def test_batch_uses_compact_deterministic_storage_aliases(tmp_path):
+    batch = make_batch(tmp_path)
+
+    assert batch.batch_dir.name == batch.batch_storage_id
+    assert re.fullmatch(r"BATCH-[A-Za-z0-9_-]{22}", batch.batch_storage_id)
+    for spec in batch.trial_specs:
+        assert re.fullmatch(r"TRIAL-[A-Za-z0-9_-]{22}", spec.storage_id)
+        assert batch.trial_dir(spec).name == spec.storage_id
+
+
+def test_compact_storage_aliases_leave_room_for_legacy_windows_paths(tmp_path):
+    batch = make_batch(tmp_path)
+    spec = batch.trial_specs[0]
+    representative_root = (
+        r"C:\Users\operator\AppData\Local\Temp\pytest-of-operator\pytest-999"
+        r"\test_driver_runs_one_synthetic0\external-prototype-output"
+    )
+    expectation_path = "\\".join(
+        (
+            representative_root,
+            batch.batch_storage_id,
+            "trials",
+            spec.storage_id,
+            "target",
+            "expectations",
+            f"{spec.transaction_id}.json",
+        )
+    )
+
+    assert len(expectation_path) < 260
 
 
 def test_batch_enforces_the_pre_registered_trial_order(tmp_path):
