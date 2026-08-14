@@ -91,6 +91,7 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 
 - **PRT-001 — Controlled Quicksave Target and Independent Verifier** — RSH-001 / EXP-001; synthetic stateful target with predeclared invariants and independent final-state proof. → `prototypes/PRT-001-controlled-quicksave-target.md`
 - **PRT-002 — Pre-registered A/B/C Controlled Quicksave Harness** — RSH-001 / EXP-001; balanced, model-identified synthetic harness over the PRT-001 target. → `prototypes/PRT-002-preregistered-abc-harness.md`
+- **PRT-003 — Explicit-Gate Terra API Driver** — RSH-001 / EXP-001; fixed-pilot, external-only API bridge with dry-run and double live-run gate. → `prototypes/PRT-003-explicit-gate-terra-api-driver.md`
 
 ## Runs
 
