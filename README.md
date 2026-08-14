@@ -62,3 +62,19 @@ This prevents us from inventing experiments just to store an observation and let
 `EXP-001` studies the Quicksave problem across different interaction environments: low-level agent orchestration, compact routing, and a deterministic single-action interface.
 
 The first dataset begins with real Mission 10 incidents rather than invented benchmark data.
+
+## Licensing
+
+Project-owned source code, tests and tooling are licensed under the Apache License 2.0.
+See [`LICENSE`](./LICENSE).
+
+Project-owned documentation and research records are licensed under the Creative
+Commons Attribution 4.0 International License.
+See [`LICENSE-CC-BY-4.0.txt`](./LICENSE-CC-BY-4.0.txt).
+
+Third-party services, dependencies, documentation, trademarks and excluded
+materials remain subject to their own terms and are not relicensed by this
+repository. See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+
+These licenses do not imply affiliation with, sponsorship by, approval from, or
+endorsement by any third-party provider.
