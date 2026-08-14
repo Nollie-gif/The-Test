@@ -58,7 +58,8 @@ def _write_json_atomic(path: Path, value: Mapping[str, Any], *, overwrite: bool)
         encoding="utf-8",
         dir=path.parent,
         delete=False,
-        prefix=f".{path.name}.",
+        # Keep temporary names short for deeply nested UUID-based trial paths on Windows.
+        prefix=".tmp.",
         suffix=".tmp",
     ) as tmp:
         json.dump(value, tmp, ensure_ascii=False, indent=2, sort_keys=True)
