@@ -22,6 +22,9 @@ A strong agent may behave substantially better when infrastructure behaves like 
 
 The research lineage comes from real Mission 10 observations: operational bookkeeping moved away from conversational memory, save authority was converted from prose rules into executable gates, and the DM Control Room reduced unnecessary repository lookups by routing the agent toward the smallest authoritative source.
 
+## Public scope and independence
+
+This repository documents reproducible research methods and sanitized findings only. It contains no raw research outputs or private operational data. The project is independent and is not affiliated with, endorsed by, or sponsored by any model provider.
 ## Repository map
 
 - `RESEARCH_PROTOCOL.md` — research method, metrics, comparison rules, evidence hierarchy, and anti-bias rules.
@@ -59,3 +62,23 @@ This prevents us from inventing experiments just to store an observation and let
 `EXP-001` studies the Quicksave problem across different interaction environments: low-level agent orchestration, compact routing, and a deterministic single-action interface.
 
 The first dataset begins with real Mission 10 incidents rather than invented benchmark data.
+
+## Licensing
+
+Project-owned source code, tests and tooling are licensed under the Apache License 2.0.
+See [`LICENSE`](./LICENSE).
+
+Project-owned documentation and research records are licensed under the Creative
+Commons Attribution 4.0 International License.
+See [`LICENSE-CC-BY-4.0.txt`](./LICENSE-CC-BY-4.0.txt).
+
+Third-party services, dependencies, documentation, trademarks and excluded
+materials remain subject to their own terms and are not relicensed by this
+repository. See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+
+These licenses do not imply affiliation with, sponsorship by, approval from, or
+endorsement by any third-party provider.
+
+## Attribution
+
+Unless otherwise noted, project-owned documentation and research records are attributed to Nollie-gif/The-Test contributors.

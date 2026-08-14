@@ -70,6 +70,9 @@ The driver uses the Responses API function-calling loop and records response
 IDs, token counts when returned, model-turn count, tool telemetry, and the
 independent verifier outcome beside the external trial.
 
+## Research data boundary
+
+Batch research uses only the official API with synthetic or authorized data. `store: false` is required in request payloads for data minimisation; it does not claim zero provider retention. Refusals are observations. Browser automation/scraping, safeguard bypass, hidden-prompt extraction, and competitor-model training are out of scope.
 ## Batch workflow
 
 After a separate PM authorization for a real non-canonical trial:

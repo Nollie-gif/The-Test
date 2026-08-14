@@ -391,6 +391,7 @@ def _request_payload(
 ) -> dict[str, Any]:
     return {
         "model": config.model,
+        "store": False,
         "reasoning": {"effort": config.reasoning_effort},
         "max_output_tokens": config.max_output_tokens_per_turn,
         "instructions": _common_instructions(instruction),

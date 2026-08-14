@@ -58,6 +58,11 @@ Human-readable evidence remains Markdown, but repeatable experiment runs must al
 
 This automation exists to remove bookkeeping from researcher/agent memory, not to replace research judgment.
 
+## Research Data Boundary
+
+Systematic or batch research uses only the official API with synthetic or authorized data. Refusals are observations, not bypass targets.
+
+Do not use ChatGPT website browser automation or scraping, safeguard bypass, hidden-prompt extraction, or outputs to train a competing model. Keep raw logs, screenshots, API responses, credentials, personal/work data, local paths, and private identifiers outside the repository. API requests use `store: false` for data minimisation; this does not claim zero provider retention.
 ## Research hierarchy
 
 The repository uses three linked evidence layers:
