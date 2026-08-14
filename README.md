@@ -78,3 +78,7 @@ repository. See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 These licenses do not imply affiliation with, sponsorship by, approval from, or
 endorsement by any third-party provider.
+
+## Attribution
+
+Unless otherwise noted, project-owned documentation and research records are attributed to Nollie-gif/The-Test contributors.
