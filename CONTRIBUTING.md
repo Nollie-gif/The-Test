@@ -33,15 +33,37 @@ Keep `related_ids` as an inline YAML list so the dependency-free validator can p
 - Real experimental evidence begins at `RUN-001`.
 - Never delete an ugly run merely because it damages a preferred hypothesis.
 
-## Validation
+## Guarded commit flow
 
-Before committing:
+The-Test intentionally does not rely on a contributor remembering hidden Git,
+CI, or research-safety steps. Normal commits must use the local preflight:
 
-```bash
-python scripts/validate_research_repo.py
+1. Work on a fresh `agent/...` branch — never commit directly to `main`.
+2. Stage only the exact files intended for the commit.
+3. Run the preflight with the same Python environment used for tests:
+
+   ```powershell
+   & "path\to\python.exe" .\scripts\preflight_commit.py
+   ```
+
+4. Commit only if it prints `COMMIT-READY`. Any `STOP-*` result means stop and
+   resolve that condition first.
+
+Install the versioned hook once per local clone:
+
+```powershell
+& "path\to\python.exe" .\scripts\install_preflight_hook.py
 ```
 
-GitHub Actions runs the same validation automatically.
+The hook accepts a normal `git commit` only when a preflight marker is less
+than 15 minutes old and matches the current branch, `HEAD`, and exact staged
+diff. It does not replace review or CI. `git commit --no-verify` is an explicit
+process violation, not an approved shortcut.
+
+The preflight never calls the API driver, runs `run-next`, creates a `RUN-###`
+record, commits, or pushes. It checks no-reply identity without printing the
+email, staged scope/whitespace, branch freshness, pytest, and both repository
+validators. GitHub Actions remains the independent remote backstop.
 
 ## Prototype rule
 
