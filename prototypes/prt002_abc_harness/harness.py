@@ -40,6 +40,7 @@ TASK_REQUEST = "DM note: quicksave"
 PROMPT_REVISION = "exp-001-prt-002-v1"
 VARIANTS = ("A", "B", "C")
 DEFAULT_REPEATS_PER_VARIANT = 3
+DISPOSABLE_SINGLE_TRIAL_MODE = "disposable-single-trial"
 INITIAL_PAYLOAD = {"published_generation": 0, "checkpoint": "baseline"}
 EXPECTED_PAYLOAD = {"published_generation": 1, "checkpoint": "quicksave-complete"}
 
@@ -208,13 +209,23 @@ class PreregisteredBatch:
         operator: str,
         source_revision: str,
         repeats_per_variant: int = DEFAULT_REPEATS_PER_VARIANT,
+        mode: str = "abc-research",
     ) -> "PreregisteredBatch":
         """Persist a full balanced-order batch before any agent action can occur."""
         output_root = _require_external_output_root(Path(output_root))
         agent_model = _require_nonempty("agent_model", agent_model)
         operator = _require_nonempty("operator", operator)
         source_revision = _require_nonempty("source_revision", source_revision)
-        schedule = _balanced_schedule(repeats_per_variant)
+        if mode == "abc-research":
+            schedule = _balanced_schedule(repeats_per_variant)
+            order_policy = "balanced-latin-square"
+        elif mode == DISPOSABLE_SINGLE_TRIAL_MODE:
+            # This is deliberately distinct from the A/B/C research schedule.
+            schedule = ["C"]
+            order_policy = "single-variant-c-disposable-pilot"
+            repeats_per_variant = 1
+        else:
+            raise HarnessError("batch mode is not recognized")
 
         batch_id = f"BATCH-{uuid.uuid4()}"
         batch_storage_id = _compact_storage_id(batch_id, prefix="BATCH-")
@@ -251,7 +262,8 @@ class PreregisteredBatch:
             "operator": operator,
             "source_revision": source_revision,
             "prompt_revision": PROMPT_REVISION,
-            "variant_order_policy": "balanced-latin-square",
+            "batch_mode": mode,
+            "variant_order_policy": order_policy,
             "repeats_per_variant": repeats_per_variant,
             "variants": list(VARIANTS),
             "initial_payload": dict(INITIAL_PAYLOAD),
