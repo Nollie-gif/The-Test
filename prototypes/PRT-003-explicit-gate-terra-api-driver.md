@@ -69,6 +69,16 @@ The driver is safe by default:
    but before a final receipt, the batch is blocked. \`inspect-interrupted\`
    produces a read-only \`STOP_REQUIRED\` report; it never retries, resumes,
    finalizes, or opens another trial.
+7. A later offline-only disposition may record that hard stop in one immutable
+   \`interruption-disposition.json\`. It binds only safe journal facts and
+   remains \`NOT_ACCEPTED\`; it never becomes a result, receipt, retry, resume,
+   API authorization, or \`RUN-*\` record.
+8. A future disposable pilot may receive one immutable
+   \`pilot-approval-proof.json\` before its first trial opens. It freezes the
+   exact batch, driver registration, full pre-registered schedule, fixed model
+   limits, and an opaque decision reference. The proof is explicitly **not** a
+   live API authorization; the CLI still requires both explicit live flags and
+   a separate human authorization.
 
 The driver uses the Responses API function-calling loop and records response
 IDs, token counts when returned, model-turn count, tool telemetry, and the
@@ -97,6 +107,19 @@ python -m prototypes.prt002_abc_harness.api_driver plan-next \\
 # result means do not retry or resume the trial.
 python -m prototypes.prt002_abc_harness.api_driver inspect-interrupted \\
   --batch-dir /safe/external/output/BATCH-...
+
+# No API call: create one immutable STOP disposition only for a verified hard
+# crash. It does not repair, retry, resume, or finalize the interrupted trial.
+python -m prototypes.prt002_abc_harness.api_driver record-interruption-disposition \\
+  --batch-dir /safe/external/output/BATCH-...
+
+# No API call: before any future disposable pilot opens a trial, freeze its
+# exact scope with an opaque non-personal decision ID. This is not a live-run
+# authorization; the later live command still needs both explicit flags and a
+# separate human authorization.
+python -m prototypes.prt002_abc_harness.api_driver create-pilot-approval-proof \\
+  --batch-dir /safe/external/output/BATCH-... \\
+  --approval-reference PM-DECISION-001
 
 # No API call and no mutation: validate a redacted external-evidence report.
 # STOP_REQUIRED means preserve the artifacts and do not retry, resume, or repair.
