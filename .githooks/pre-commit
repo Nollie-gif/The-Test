@@ -1,0 +1,19 @@
+#!/bin/sh
+# Versioned guardrail: accepts a commit only after a matching local preflight.
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if command -v py >/dev/null 2>&1; then
+  exec py -3 scripts/preflight_commit.py --verify-marker
+fi
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 scripts/preflight_commit.py --verify-marker
+fi
+if command -v python >/dev/null 2>&1; then
+  exec python scripts/preflight_commit.py --verify-marker
+fi
+
+echo "STOP-PYTHON-NOT-FOUND: Cannot verify the required preflight marker." >&2
+exit 1

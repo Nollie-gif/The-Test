@@ -23,6 +23,27 @@ The Terra primary session should:
 - refuse or stop a shortcut when it threatens provenance, comparability, validation, or repository authority;
 - keep `RUN-001` blocked until the reconciliation/promotion gate below is complete.
 
+## 🔒 Human preflight guardrail — normal commit path
+
+The-Test now carries a versioned local commit guardrail so a future operator or
+chat does not need to reconstruct hidden Git/CI rules from memory.
+
+For every normal code/documentation commit:
+
+1. use a fresh `agent/...` feature branch, never direct `main`;
+2. stage the exact intended files and leave no untracked/unstaged ambiguity;
+3. run `scripts/preflight_commit.py` with the project Python environment;
+4. proceed only on `COMMIT-READY`; a `STOP-*` result is a real stop, not a
+   prompt to improvise around;
+5. ensure the local versioned hook is installed through
+   `scripts/install_preflight_hook.py`.
+
+The marker expires after 15 minutes and is bound to the branch, `HEAD`, and
+exact staged diff. The hook verifies the marker before a normal commit. It does
+not make API requests, run `run-next`, create `RUN-###`, commit, or push.
+`--no-verify` is an explicit process violation. CI remains the independent
+remote backstop; GATE-001 and RUN-001 retain their separate hard stops.
+
 ## ⚠️ CURRENT TAKEOVER BLOCKER — evidence promotion, not runner import
 
 The fixture-runner preflight was integrated into `main` through PR #2 (squash
