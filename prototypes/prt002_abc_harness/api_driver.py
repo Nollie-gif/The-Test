@@ -131,6 +131,7 @@ class DriverOutcome:
     model_turns: int
     usage: Mapping[str, int]
     terminal_error: str | None
+    transport_error_kind: str | None
     trial_status: str
     request_attempts: int
     unknown_request_attempts: int
@@ -145,6 +146,7 @@ class DriverOutcome:
             "model_turns": self.model_turns,
             "usage": dict(self.usage),
             "terminal_error": self.terminal_error,
+            "transport_error_kind": self.transport_error_kind,
             "trial_status": self.trial_status,
             "request_attempts": self.request_attempts,
             "unknown_request_attempts": self.unknown_request_attempts,
@@ -693,6 +695,7 @@ def _finalize(
     model_turns: int,
     usage: Mapping[str, int],
     terminal_error: str | None,
+    transport_error_kind: str | None,
     request_attempts: int,
     unknown_request_attempts: int,
 ) -> DriverOutcome:
@@ -704,6 +707,7 @@ def _finalize(
         model_turns=model_turns,
         usage=dict(usage),
         terminal_error=terminal_error,
+        transport_error_kind=transport_error_kind,
         trial_status=trial_status,
         request_attempts=request_attempts,
         unknown_request_attempts=unknown_request_attempts,
@@ -726,6 +730,7 @@ def _finalize(
             "model_response_ids": list(response_ids),
             "usage": dict(usage),
             "terminal_error": terminal_error,
+            "transport_error_kind": transport_error_kind,
             "result_digest": digest(result),
             "verifier_proof_digest": digest(result["verifier_proof"]),
         },
@@ -754,6 +759,7 @@ def run_next_trial(
     response_ids: list[str] = []
     usage: dict[str, int] = {}
     terminal_error: str | None = None
+    transport_error_kind: str | None = None
     request_attempts = 0
     unknown_request_attempts = 0
 
@@ -774,6 +780,7 @@ def run_next_trial(
                 response = transport.create(payload)
             except Exception as exc:
                 unknown_request_attempts += 1
+                transport_error_kind = _transport_error_kind(exc)
                 _emit_driver_event(
                     trial,
                     "api_request_incomplete",
@@ -781,7 +788,7 @@ def run_next_trial(
                     request_attempt=request_attempts,
                     request_fingerprint=request_fingerprint,
                     outcome_status="UNKNOWN",
-                    error_kind=_transport_error_kind(exc),
+                    error_kind=transport_error_kind,
                 )
                 terminal_error = (
                     "Responses transport ended after request_started; request outcome is UNKNOWN/INCOMPLETE"
@@ -826,6 +833,7 @@ def run_next_trial(
                     model_turns=model_turn,
                     usage=usage,
                     terminal_error=None,
+                    transport_error_kind=None,
                     request_attempts=request_attempts,
                     unknown_request_attempts=unknown_request_attempts,
                 )
@@ -874,6 +882,7 @@ def run_next_trial(
         model_turns=len(response_ids),
         usage=usage,
         terminal_error=terminal_error,
+        transport_error_kind=transport_error_kind,
         request_attempts=request_attempts,
         unknown_request_attempts=unknown_request_attempts,
     )
