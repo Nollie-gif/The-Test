@@ -6,6 +6,7 @@ Events are structured and are the primary evidence for derived metrics.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from threading import Lock
 from typing import Dict, Any
@@ -27,6 +28,7 @@ class Telemetry:
             payload["sequence"] = self._seq
             self.file.write(json.dumps(payload, ensure_ascii=False) + "\n")
             self.file.flush()
+            os.fsync(self.file.fileno())
 
     def close(self):
         try:
