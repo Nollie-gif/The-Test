@@ -31,6 +31,7 @@ from .harness import ControlledTrial, HarnessError, PreregisteredBatch, agent_in
 DRIVER_VERSION = "prt-003-terra-api-driver-0.1"
 DRIVER_REGISTRATION_FILENAME = "api-driver-registration.json"
 DRIVER_OUTCOME_FILENAME = "api-driver-outcome.json"
+DRIVER_RECEIPT_FILENAME = "api-driver-receipt.json"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 SUCCESS_CLAIM = "CLAIM: quicksave_complete"
 UNABLE_CLAIM = "CLAIM: unable"
@@ -91,8 +92,10 @@ class HttpResponsesTransport:
         except urllib.error.HTTPError as exc:
             # Avoid echoing arbitrary response bodies into durable trial artifacts.
             raise ApiDriverError(f"Responses API rejected the request (HTTP {exc.code})") from exc
-        except urllib.error.URLError as exc:
-            raise ApiDriverError("Responses API request could not reach the service") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise ApiDriverError(
+                "Responses API request ended before a response could be confirmed"
+            ) from exc
         except json.JSONDecodeError as exc:
             raise ApiDriverError("Responses API returned invalid JSON") from exc
 
@@ -110,6 +113,9 @@ class DriverOutcome:
     model_turns: int
     usage: Mapping[str, int]
     terminal_error: str | None
+    trial_status: str
+    request_attempts: int
+    unknown_request_attempts: int
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -121,6 +127,9 @@ class DriverOutcome:
             "model_turns": self.model_turns,
             "usage": dict(self.usage),
             "terminal_error": self.terminal_error,
+            "trial_status": self.trial_status,
+            "request_attempts": self.request_attempts,
+            "unknown_request_attempts": self.unknown_request_attempts,
             "result_path": "result.json",
         }
 
@@ -486,6 +495,18 @@ def _emit_driver_event(trial: ControlledTrial, event_type: str, **fields: Any) -
     )
 
 
+def _transport_error_kind(exc: Exception) -> str:
+    """Classify a transport failure without persisting arbitrary error text."""
+
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, urllib.error.URLError):
+        return "network_error"
+    if isinstance(exc, ApiDriverError):
+        return "api_driver_error"
+    return "transport_error"
+
+
 def _finalize(
     trial: ControlledTrial,
     *,
@@ -493,16 +514,43 @@ def _finalize(
     model_turns: int,
     usage: Mapping[str, int],
     terminal_error: str | None,
+    request_attempts: int,
+    unknown_request_attempts: int,
 ) -> DriverOutcome:
     result = trial.finalize()
+    trial_status = "COMPLETE" if terminal_error is None else "INCOMPLETE"
     outcome = DriverOutcome(
         result=result,
         model_response_ids=tuple(response_ids),
         model_turns=model_turns,
         usage=dict(usage),
         terminal_error=terminal_error,
+        trial_status=trial_status,
+        request_attempts=request_attempts,
+        unknown_request_attempts=unknown_request_attempts,
     )
     _write_json_new(trial.trial_dir / DRIVER_OUTCOME_FILENAME, outcome.as_dict())
+    _write_json_new(
+        trial.trial_dir / DRIVER_RECEIPT_FILENAME,
+        {
+            "artifact_kind": "noncanonical-api-driver-receipt",
+            "evidence_status": "synthetic-prototype-only-not-a-RUN",
+            "driver_version": DRIVER_VERSION,
+            "completed_at": now_iso(),
+            "trial_status": trial_status,
+            "acceptance_status": (
+                "SYNTHETIC_COMPLETE_NOT_A_RUN" if trial_status == "COMPLETE" else "NOT_ACCEPTED"
+            ),
+            "request_journal_path": "events.jsonl",
+            "request_attempts": request_attempts,
+            "unknown_request_attempts": unknown_request_attempts,
+            "model_response_ids": list(response_ids),
+            "usage": dict(usage),
+            "terminal_error": terminal_error,
+            "result_digest": digest(result),
+            "verifier_proof_digest": digest(result["verifier_proof"]),
+        },
+    )
     return outcome
 
 
@@ -527,17 +575,53 @@ def run_next_trial(
     response_ids: list[str] = []
     usage: dict[str, int] = {}
     terminal_error: str | None = None
+    request_attempts = 0
+    unknown_request_attempts = 0
 
     try:
         for model_turn in range(1, config.max_model_turns + 1):
             payload = _request_payload(instruction, input_items, config)
-            response = transport.create(payload)
+            request_attempts += 1
+            request_fingerprint = digest(payload)
+            _emit_driver_event(
+                trial,
+                "api_request_started",
+                model_turn=model_turn,
+                request_attempt=request_attempts,
+                request_fingerprint=request_fingerprint,
+            )
+            try:
+                response = transport.create(payload)
+            except Exception as exc:
+                unknown_request_attempts += 1
+                _emit_driver_event(
+                    trial,
+                    "api_request_incomplete",
+                    model_turn=model_turn,
+                    request_attempt=request_attempts,
+                    request_fingerprint=request_fingerprint,
+                    outcome_status="UNKNOWN",
+                    error_kind=_transport_error_kind(exc),
+                )
+                terminal_error = (
+                    "Responses transport ended after request_started; request outcome is UNKNOWN/INCOMPLETE"
+                )
+                break
             if not isinstance(response, Mapping):
                 raise ApiDriverError("Responses transport returned a non-object response")
             response_id = response.get("id")
             if isinstance(response_id, str):
                 response_ids.append(response_id)
-            _add_usage(usage, _usage_from(response))
+            response_usage = _usage_from(response)
+            _add_usage(usage, response_usage)
+            _emit_driver_event(
+                trial,
+                "api_response_observed",
+                model_turn=model_turn,
+                request_attempt=request_attempts,
+                response_id=response_id if isinstance(response_id, str) else None,
+                usage=response_usage,
+            )
 
             output = _response_output(response)
             input_items.extend(output)
@@ -562,6 +646,8 @@ def run_next_trial(
                     model_turns=model_turn,
                     usage=usage,
                     terminal_error=None,
+                    request_attempts=request_attempts,
+                    unknown_request_attempts=unknown_request_attempts,
                 )
 
             for call in calls:
@@ -593,10 +679,11 @@ def run_next_trial(
                     }
                 )
 
-        terminal_error = (
-            f"model exceeded the pre-registered limit of {config.max_model_turns} API turns"
-        )
-        _emit_driver_event(trial, "driver_stop", stage="model_turn_limit", message=terminal_error)
+        if terminal_error is None:
+            terminal_error = (
+                f"model exceeded the pre-registered limit of {config.max_model_turns} API turns"
+            )
+            _emit_driver_event(trial, "driver_stop", stage="model_turn_limit", message=terminal_error)
     except (ApiDriverError, HarnessError) as exc:
         terminal_error = str(exc)
         _emit_driver_event(trial, "driver_error", stage="api_driver", message=terminal_error)
@@ -607,6 +694,8 @@ def run_next_trial(
         model_turns=len(response_ids),
         usage=usage,
         terminal_error=terminal_error,
+        request_attempts=request_attempts,
+        unknown_request_attempts=unknown_request_attempts,
     )
 
 

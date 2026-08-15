@@ -5,6 +5,7 @@ import pytest
 
 from prototypes.prt002_abc_harness.api_driver import (
     DRIVER_OUTCOME_FILENAME,
+    DRIVER_RECEIPT_FILENAME,
     DRIVER_REGISTRATION_FILENAME,
     SUCCESS_CLAIM,
     ApiDriverError,
@@ -87,6 +88,17 @@ class ScriptedTransport:
         }
 
 
+class TimeoutTransport:
+    """A local timeout after the driver has durably marked a request as started."""
+
+    def __init__(self):
+        self.payloads = []
+
+    def create(self, payload):
+        self.payloads.append(payload)
+        raise TimeoutError("synthetic transport timeout")
+
+
 def make_batch(tmp_path: Path):
     return create_api_batch(
         tmp_path / "external-prototype-output",
@@ -138,7 +150,49 @@ def test_driver_runs_one_synthetic_trial_with_fake_transport_and_records_verifie
     trial_dir = batch.trial_dir(batch.trial_specs[0])
     assert (trial_dir / "result.json").is_file()
     assert (trial_dir / DRIVER_OUTCOME_FILENAME).is_file()
+    assert (trial_dir / DRIVER_RECEIPT_FILENAME).is_file()
     assert not any(path.name.startswith("RUN-") for path in batch.batch_dir.rglob("*"))
+
+    events = [json.loads(line) for line in (trial_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    started = [event for event in events if event["event_type"] == "api_request_started"]
+    observed = [event for event in events if event["event_type"] == "api_response_observed"]
+    receipt = json.loads((trial_dir / DRIVER_RECEIPT_FILENAME).read_text(encoding="utf-8"))
+    assert len(started) == len(observed) == 4
+    assert started[0]["sequence"] < observed[0]["sequence"]
+    assert "request_fingerprint" in started[0]
+    assert "instructions" not in started[0]
+    assert receipt["trial_status"] == "COMPLETE"
+    assert receipt["acceptance_status"] == "SYNTHETIC_COMPLETE_NOT_A_RUN"
+
+
+def test_driver_records_unknown_request_outcome_and_rejects_the_trial_after_timeout(tmp_path):
+    batch = make_batch(tmp_path)
+    transport = TimeoutTransport()
+
+    outcome = run_next_trial(batch, transport)
+
+    assert len(transport.payloads) == 1
+    assert outcome.trial_status == "INCOMPLETE"
+    assert outcome.request_attempts == 1
+    assert outcome.unknown_request_attempts == 1
+    assert outcome.terminal_error == (
+        "Responses transport ended after request_started; request outcome is UNKNOWN/INCOMPLETE"
+    )
+    assert outcome.result["verifier_proof"]["authoritative_success"] is False
+
+    trial_dir = batch.trial_dir(batch.trial_specs[0])
+    events = [json.loads(line) for line in (trial_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    started = [event for event in events if event["event_type"] == "api_request_started"]
+    incomplete = [event for event in events if event["event_type"] == "api_request_incomplete"]
+    receipt = json.loads((trial_dir / DRIVER_RECEIPT_FILENAME).read_text(encoding="utf-8"))
+    assert len(started) == len(incomplete) == 1
+    assert started[0]["sequence"] < incomplete[0]["sequence"]
+    assert incomplete[0]["outcome_status"] == "UNKNOWN"
+    assert incomplete[0]["error_kind"] == "timeout"
+    assert "synthetic transport timeout" not in json.dumps(incomplete)
+    assert receipt["trial_status"] == "INCOMPLETE"
+    assert receipt["acceptance_status"] == "NOT_ACCEPTED"
+    assert receipt["unknown_request_attempts"] == 1
 
 
 def test_driver_refuses_config_drift_and_tampered_registration_before_opening_a_trial(tmp_path):
