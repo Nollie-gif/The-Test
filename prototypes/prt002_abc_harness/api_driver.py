@@ -25,7 +25,13 @@ from typing import Any, Mapping, Protocol
 
 from prototypes.prt001_controlled_quicksave.common import digest, now_iso
 
-from .harness import ControlledTrial, HarnessError, PreregisteredBatch, agent_instruction
+from .harness import (
+    DISPOSABLE_SINGLE_TRIAL_MODE,
+    ControlledTrial,
+    HarnessError,
+    PreregisteredBatch,
+    agent_instruction,
+)
 
 
 DRIVER_VERSION = "prt-003-terra-api-driver-0.1"
@@ -49,12 +55,24 @@ class DriverConfig:
     reasoning_effort: str = "medium"
     max_model_turns: int = 8
     max_output_tokens_per_turn: int = 512
+    max_request_bytes: int | None = None
+    max_total_estimated_cost_usd: float | None = None
+    input_usd_per_million: float | None = None
+    output_usd_per_million: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 DEFAULT_DRIVER_CONFIG = DriverConfig()
+DISPOSABLE_PILOT_CONFIG = DriverConfig(
+    max_model_turns=4,
+    max_output_tokens_per_turn=512,
+    max_request_bytes=8000,
+    max_total_estimated_cost_usd=0.10,
+    input_usd_per_million=2.0,
+    output_usd_per_million=12.0,
+)
 
 
 class ResponsesTransport(Protocol):
@@ -414,6 +432,30 @@ def create_api_batch(
     return batch
 
 
+def create_disposable_pilot_batch(
+    output_root: Path,
+    *,
+    operator: str,
+    source_revision: str,
+    driver_source_revision: str,
+) -> PreregisteredBatch:
+    """Create one explicitly noncanonical Variant-C pilot batch without an API call."""
+
+    _require_external_batch_dir(Path(output_root))
+    batch = PreregisteredBatch.create(
+        Path(output_root),
+        agent_model=DISPOSABLE_PILOT_CONFIG.model,
+        operator=_require_nonempty("operator", operator),
+        source_revision=_require_nonempty("source_revision", source_revision),
+        mode=DISPOSABLE_SINGLE_TRIAL_MODE,
+    )
+    _write_json_new(
+        batch.batch_dir / DRIVER_REGISTRATION_FILENAME,
+        _driver_registration(batch, driver_source_revision=driver_source_revision, config=DISPOSABLE_PILOT_CONFIG),
+    )
+    return batch
+
+
 def load_api_batch(batch_dir: Path) -> PreregisteredBatch:
     """Load and verify an existing external batch and its PRT-003 registration."""
 
@@ -523,6 +565,30 @@ def _request_payload(
         "tool_choice": "auto",
         "parallel_tool_calls": False,
     }
+
+
+def _enforce_disposable_cost_envelope(payload: Mapping[str, Any], config: DriverConfig, *, attempt: int) -> None:
+    """Fail closed before transport if a disposable pilot could exceed its frozen budget."""
+
+    if (
+        config.max_request_bytes is None
+        or config.max_total_estimated_cost_usd is None
+        or config.input_usd_per_million is None
+        or config.output_usd_per_million is None
+    ):
+        return
+    forbidden = {"previous_response_id", "conversation", "background", "summary", "compact", "compaction"}
+    if forbidden & set(payload):
+        raise ApiDriverError("disposable pilot payload contains forbidden conversation/recap state")
+    payload_bytes = len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    if payload_bytes > config.max_request_bytes:
+        raise ApiDriverError("disposable pilot request exceeds its frozen input-byte ceiling")
+    worst_case = attempt * (
+        (config.max_request_bytes * config.input_usd_per_million / 1_000_000)
+        + (config.max_output_tokens_per_turn * config.output_usd_per_million / 1_000_000)
+    )
+    if worst_case > config.max_total_estimated_cost_usd:
+        raise ApiDriverError("disposable pilot could exceed its frozen $0.10 cost envelope")
 
 
 def plan_next_trial(batch: PreregisteredBatch, *, config: DriverConfig = DEFAULT_DRIVER_CONFIG) -> dict[str, Any]:
@@ -694,6 +760,7 @@ def run_next_trial(
     try:
         for model_turn in range(1, config.max_model_turns + 1):
             payload = _request_payload(instruction, input_items, config)
+            _enforce_disposable_cost_envelope(payload, config, attempt=request_attempts + 1)
             request_attempts += 1
             request_fingerprint = digest(payload)
             _emit_driver_event(
@@ -836,6 +903,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     create.add_argument("--repeats-per-variant", type=int, default=3)
 
+    pilot_create = commands.add_parser(
+        "create-disposable-pilot-batch",
+        help="Create one offline-only, one-trial Variant-C disposable pilot batch.",
+    )
+    pilot_create.add_argument("--outdir", required=True, help="External output directory")
+    pilot_create.add_argument("--operator", required=True, help="Recorded human/system operator")
+    pilot_create.add_argument("--source-revision", required=True)
+    pilot_create.add_argument("--driver-source-revision", required=True)
+
     plan = commands.add_parser(
         "plan-next",
         help="Print the next trial plan without opening a trial or making an API request.",
@@ -909,6 +985,14 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Non-canonical PRT-003 batch created: {batch.batch_dir}")
         return
 
+    if args.command == "create-disposable-pilot-batch":
+        batch = create_disposable_pilot_batch(
+            Path(args.outdir), operator=args.operator, source_revision=args.source_revision,
+            driver_source_revision=args.driver_source_revision,
+        )
+        print(f"Non-canonical disposable PRT-003 pilot batch created: {batch.batch_dir}")
+        return
+
     if args.command == "validate-external-evidence":
         from .evidence import validate_external_batch
 
@@ -956,14 +1040,15 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     batch = load_api_batch(Path(args.batch_dir))
+    config = DISPOSABLE_PILOT_CONFIG if batch.manifest.get("batch_mode") == DISPOSABLE_SINGLE_TRIAL_MODE else DEFAULT_DRIVER_CONFIG
     if args.command == "plan-next":
-        print(json.dumps(plan_next_trial(batch), ensure_ascii=False, indent=2, sort_keys=True))
+        print(json.dumps(plan_next_trial(batch, config=config), ensure_ascii=False, indent=2, sort_keys=True))
         return
 
     if args.command == "inspect-interrupted":
         print(
             json.dumps(
-                inspect_interrupted_trials(batch),
+                inspect_interrupted_trials(batch, config=config),
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
@@ -981,7 +1066,7 @@ def main(argv: list[str] | None = None) -> None:
         require_valid_pilot_approval_proof(Path(args.batch_dir))
     except EvidenceValidationError as exc:
         raise SystemExit(str(exc)) from exc
-    outcome = run_next_trial(batch, HttpResponsesTransport())
+    outcome = run_next_trial(batch, HttpResponsesTransport(), config=config)
     print(json.dumps(outcome.as_dict(), ensure_ascii=False, indent=2, sort_keys=True))
 
 

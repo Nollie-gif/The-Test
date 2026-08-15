@@ -10,6 +10,9 @@ from prototypes.prt002_abc_harness.api_driver import (
     SUCCESS_CLAIM,
     ApiDriverError,
     DriverConfig,
+    DISPOSABLE_PILOT_CONFIG,
+    _enforce_disposable_cost_envelope,
+    create_disposable_pilot_batch,
     create_api_batch,
     inspect_interrupted_trials,
     load_api_batch,
@@ -147,6 +150,35 @@ def test_create_and_plan_are_external_noncanonical_and_never_make_a_network_call
     assert plan["request"]["parallel_tool_calls"] is False
     assert len(plan["request"]["tools"]) == 6
     assert "RUN-001" not in json.dumps(plan)
+
+
+def test_disposable_pilot_is_one_variant_c_trial_with_frozen_cost_and_no_recap(tmp_path):
+    batch = create_disposable_pilot_batch(
+        tmp_path / "external-pilot", operator="pytest", source_revision="main-test", driver_source_revision="main-test"
+    )
+    assert len(batch.trial_specs) == 1
+    assert batch.trial_specs[0].variant == "C"
+    assert batch.manifest["batch_mode"] == "disposable-single-trial"
+    plan = plan_next_trial(batch, config=DISPOSABLE_PILOT_CONFIG)
+    assert plan["model_config"]["max_model_turns"] == 4
+    assert plan["model_config"]["max_total_estimated_cost_usd"] == 0.10
+    assert plan["model_config"]["input_usd_per_million"] == 2.0
+    assert plan["model_config"]["output_usd_per_million"] == 12.0
+    assert plan["request"]["store"] is False
+    assert not ({"previous_response_id", "conversation", "background", "summary"} & set(plan["request"]))
+
+
+def test_disposable_pilot_rejects_a_payload_that_could_exceed_its_frozen_budget(tmp_path):
+    too_small = DriverConfig(
+        max_model_turns=4,
+        max_output_tokens_per_turn=512,
+        max_request_bytes=1,
+        max_total_estimated_cost_usd=0.10,
+        input_usd_per_million=2.0,
+        output_usd_per_million=12.0,
+    )
+    with pytest.raises(ApiDriverError, match="input-byte ceiling"):
+        _enforce_disposable_cost_envelope({"model": "gpt-5.6-terra"}, too_small, attempt=1)
 
 
 def test_driver_runs_one_synthetic_trial_with_fake_transport_and_records_verifier_truth(tmp_path):

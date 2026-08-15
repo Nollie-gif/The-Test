@@ -29,7 +29,7 @@ from .api_driver import (
     DRIVER_VERSION,
     load_api_batch,
 )
-from .harness import PreregisteredBatch, TrialSpec
+from .harness import DISPOSABLE_SINGLE_TRIAL_MODE, PreregisteredBatch, TrialSpec
 
 
 EVIDENCE_MANIFEST_FILENAME = "evidence-manifest.json"
@@ -731,6 +731,10 @@ def validate_external_batch(batch_dir: Path) -> dict[str, Any]:
     )
     if batch_manifest is not None and batch_manifest.get("artifact_kind") != "noncanonical-preregistered-abc-batch":
         errors.append("batch.json: wrong artifact kind")
+    if batch_manifest is not None and batch_manifest.get("batch_mode") == DISPOSABLE_SINGLE_TRIAL_MODE:
+        specs = batch.trial_specs
+        if len(specs) != 1 or specs[0].variant != "C":
+            errors.append("batch.json: disposable pilot must freeze exactly one Variant-C trial")
     if batch_manifest is not None and batch_manifest.get("evidence_status") != EVIDENCE_STATUS:
         errors.append("batch.json: wrong evidence status")
     if registration is not None and registration.get("artifact_kind") != "noncanonical-api-driver-registration":
