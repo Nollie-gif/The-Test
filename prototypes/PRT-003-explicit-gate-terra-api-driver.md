@@ -98,6 +98,17 @@ python -m prototypes.prt002_abc_harness.api_driver plan-next \\
 python -m prototypes.prt002_abc_harness.api_driver inspect-interrupted \\
   --batch-dir /safe/external/output/BATCH-...
 
+# No API call and no mutation: validate a redacted external-evidence report.
+# STOP_REQUIRED means preserve the artifacts and do not retry, resume, or repair.
+python -m prototypes.prt002_abc_harness.api_driver validate-external-evidence \\
+  --batch-dir /safe/external/output/BATCH-...
+
+# No API call: only after every pre-registered trial is terminal and the
+# previous command reports ARCHIVE_READY, bind the safe artifacts with one
+# immutable evidence-manifest.json. This is still non-canonical and not a RUN.
+python -m prototypes.prt002_abc_harness.api_driver archive-external-evidence \\
+  --batch-dir /safe/external/output/BATCH-...
+
 # Exactly one paid synthetic API trial, only after an explicit go-ahead.
 python -m prototypes.prt002_abc_harness.api_driver run-next \\
   --batch-dir /safe/external/output/BATCH-... \\

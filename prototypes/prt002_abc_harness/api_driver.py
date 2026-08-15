@@ -848,6 +848,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     inspect.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
 
+    validate = commands.add_parser(
+        "validate-external-evidence",
+        help="Read-only redacted evidence check; never opens a trial or makes an API request.",
+    )
+    validate.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
+
+    archive = commands.add_parser(
+        "archive-external-evidence",
+        help="Create one immutable manifest only for a terminal validated external batch; no API request.",
+    )
+    archive.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
+
     run = commands.add_parser(
         "run-next",
         help="Run exactly one next trial only after two explicit live-run flags.",
@@ -878,6 +890,29 @@ def main(argv: list[str] | None = None) -> None:
             repeats_per_variant=args.repeats_per_variant,
         )
         print(f"Non-canonical PRT-003 batch created: {batch.batch_dir}")
+        return
+
+    if args.command == "validate-external-evidence":
+        from .evidence import validate_external_batch
+
+        report = validate_external_batch(Path(args.batch_dir))
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+        if report["validation_status"] in {
+            "INVALID",
+            "STOP_REQUIRED",
+            "ACTIVE_NOT_ARCHIVABLE",
+        }:
+            raise SystemExit(1)
+        return
+
+    if args.command == "archive-external-evidence":
+        from .evidence import EvidenceValidationError, archive_external_batch
+
+        try:
+            manifest = archive_external_batch(Path(args.batch_dir))
+        except EvidenceValidationError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
     batch = load_api_batch(Path(args.batch_dir))
