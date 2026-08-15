@@ -1,4 +1,5 @@
 import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from prototypes.prt002_abc_harness.api_driver import (
     ApiDriverError,
     DriverConfig,
     DISPOSABLE_PILOT_CONFIG,
+    _transport_error_kind,
     _enforce_disposable_cost_envelope,
     create_disposable_pilot_batch,
     create_api_batch,
@@ -103,6 +105,13 @@ class TimeoutTransport:
         raise TimeoutError("synthetic transport timeout")
 
 
+class NetworkErrorTransport:
+    """A local network error after the driver has marked a request as started."""
+
+    def create(self, payload):
+        raise urllib.error.URLError("synthetic network failure")
+
+
 class CrashAfterStartedTransport:
     """Simulates process termination after the durable request-started journal event."""
 
@@ -190,6 +199,7 @@ def test_driver_runs_one_synthetic_trial_with_fake_transport_and_records_verifie
     assert len(transport.payloads) == 4
     assert all(payload["store"] is False for payload in transport.payloads)
     assert outcome.terminal_error is None
+    assert outcome.transport_error_kind is None
     assert outcome.model_response_ids == (
         "resp-read-prepared",
         "resp-commit",
@@ -233,6 +243,7 @@ def test_driver_records_unknown_request_outcome_and_rejects_the_trial_after_time
     assert outcome.terminal_error == (
         "Responses transport ended after request_started; request outcome is UNKNOWN/INCOMPLETE"
     )
+    assert outcome.transport_error_kind == "timeout"
     assert outcome.result["verifier_proof"]["authoritative_success"] is False
 
     trial_dir = batch.trial_dir(batch.trial_specs[0])
@@ -240,14 +251,47 @@ def test_driver_records_unknown_request_outcome_and_rejects_the_trial_after_time
     started = [event for event in events if event["event_type"] == "api_request_started"]
     incomplete = [event for event in events if event["event_type"] == "api_request_incomplete"]
     receipt = json.loads((trial_dir / DRIVER_RECEIPT_FILENAME).read_text(encoding="utf-8"))
+    outcome_artifact = json.loads((trial_dir / DRIVER_OUTCOME_FILENAME).read_text(encoding="utf-8"))
     assert len(started) == len(incomplete) == 1
     assert started[0]["sequence"] < incomplete[0]["sequence"]
     assert incomplete[0]["outcome_status"] == "UNKNOWN"
     assert incomplete[0]["error_kind"] == "timeout"
     assert "synthetic transport timeout" not in json.dumps(incomplete)
+    assert outcome_artifact["transport_error_kind"] == "timeout"
+    assert "synthetic transport timeout" not in json.dumps(outcome_artifact)
     assert receipt["trial_status"] == "INCOMPLETE"
     assert receipt["acceptance_status"] == "NOT_ACCEPTED"
     assert receipt["unknown_request_attempts"] == 1
+    assert receipt["transport_error_kind"] == "timeout"
+    assert "synthetic transport timeout" not in json.dumps(receipt)
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected_kind"),
+    [
+        (TimeoutError("synthetic timeout"), "timeout"),
+        (urllib.error.URLError("synthetic network failure"), "network_error"),
+        (ApiDriverError("synthetic API-driver failure"), "api_driver_error"),
+        (RuntimeError("synthetic transport failure"), "transport_error"),
+    ],
+)
+def test_transport_error_kind_uses_only_allowlisted_categories(exc, expected_kind):
+    assert _transport_error_kind(exc) == expected_kind
+
+
+def test_driver_persists_network_error_kind_without_raw_error_text(tmp_path):
+    batch = make_batch(tmp_path)
+
+    outcome = run_next_trial(batch, NetworkErrorTransport())
+
+    trial_dir = batch.trial_dir(batch.trial_specs[0])
+    outcome_artifact = json.loads((trial_dir / DRIVER_OUTCOME_FILENAME).read_text(encoding="utf-8"))
+    receipt = json.loads((trial_dir / DRIVER_RECEIPT_FILENAME).read_text(encoding="utf-8"))
+    assert outcome.transport_error_kind == "network_error"
+    assert outcome_artifact["transport_error_kind"] == "network_error"
+    assert receipt["transport_error_kind"] == "network_error"
+    assert "synthetic network failure" not in json.dumps(outcome_artifact)
+    assert "synthetic network failure" not in json.dumps(receipt)
 
 
 def test_restart_after_durable_request_started_stops_without_retry_or_resume(tmp_path, monkeypatch, capsys):
