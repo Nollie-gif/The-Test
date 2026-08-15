@@ -94,6 +94,14 @@ The driver is safe by default:
    live API authorization; the CLI still requires both explicit live flags and
    a separate human authorization.
 
+Before any future live request, the human operator must complete a short
+network preflight: confirm the intended network is available and disconnect any
+VPN or proxy that is not required for that request. This is a human check, not
+an automatic network detector and not an authorization to retry a terminal
+trial. When a request ends after \`api_request_started\`, terminal evidence
+preserves only an allowlisted transport category (for example \`timeout\` or
+\`network_error\`), never arbitrary exception text.
+
 The driver uses the Responses API function-calling loop and records response
 IDs, token counts when returned, model-turn count, tool telemetry, and the
 independent verifier outcome beside the external trial.
