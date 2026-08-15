@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import tempfile
 import urllib.error
 import urllib.request
@@ -88,12 +89,34 @@ class HttpResponsesTransport:
     def __init__(self, *, api_key_env: str = "OPENAI_API_KEY") -> None:
         self.api_key_env = api_key_env
 
-    def create(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        api_key = os.environ.get(self.api_key_env)
-        if not api_key:
+    def preflight(self) -> None:
+        """Fail closed on a locally unusable TLS configuration before a trial opens.
+
+        Python honours ``SSLKEYLOGFILE`` while constructing its default TLS
+        context.  An inaccessible path can otherwise surface only after the
+        driver has durably recorded ``api_request_started``.  Context creation
+        does not make a network request and never receives the API key.
+        """
+
+        if not os.environ.get(self.api_key_env):
             raise ApiDriverError(
                 f"{self.api_key_env} is required only for an explicitly live PRT-003 trial"
             )
+        try:
+            ssl.create_default_context()
+        except OSError as exc:
+            if os.environ.get("SSLKEYLOGFILE"):
+                raise ApiDriverError(
+                    "TLS preflight failed because SSLKEYLOGFILE is unusable; "
+                    "clear it for this shell or configure a writable normal file before a live trial"
+                ) from exc
+            raise ApiDriverError(
+                "TLS environment preflight failed before a live trial could open"
+            ) from exc
+
+    def create(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        self.preflight()
+        api_key = os.environ[self.api_key_env]
 
         request = urllib.request.Request(
             OPENAI_RESPONSES_URL,
@@ -1075,7 +1098,9 @@ def main(argv: list[str] | None = None) -> None:
         require_valid_pilot_approval_proof(Path(args.batch_dir))
     except EvidenceValidationError as exc:
         raise SystemExit(str(exc)) from exc
-    outcome = run_next_trial(batch, HttpResponsesTransport(), config=config)
+    transport = HttpResponsesTransport()
+    transport.preflight()
+    outcome = run_next_trial(batch, transport, config=config)
     print(json.dumps(outcome.as_dict(), ensure_ascii=False, indent=2, sort_keys=True))
 
 
