@@ -860,6 +860,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     archive.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
 
+    disposition = commands.add_parser(
+        "record-interruption-disposition",
+        help="Record one immutable STOP disposition for a hard crash; no retry, resume, or API request.",
+    )
+    disposition.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
+
+    approval = commands.add_parser(
+        "create-pilot-approval-proof",
+        help="Freeze one future pilot scope without authorising an API request.",
+    )
+    approval.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
+    approval.add_argument(
+        "--approval-reference",
+        required=True,
+        help="Short opaque decision ID only; never a name, email, or local path.",
+    )
+
     run = commands.add_parser(
         "run-next",
         help="Run exactly one next trial only after two explicit live-run flags.",
@@ -915,6 +932,29 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
+    if args.command == "record-interruption-disposition":
+        from .evidence import EvidenceValidationError, create_interruption_disposition
+
+        try:
+            disposition = create_interruption_disposition(Path(args.batch_dir))
+        except EvidenceValidationError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(json.dumps(disposition, ensure_ascii=False, indent=2, sort_keys=True))
+        return
+
+    if args.command == "create-pilot-approval-proof":
+        from .evidence import EvidenceValidationError, create_pilot_approval_proof
+
+        try:
+            proof = create_pilot_approval_proof(
+                Path(args.batch_dir),
+                approval_reference=args.approval_reference,
+            )
+        except EvidenceValidationError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(json.dumps(proof, ensure_ascii=False, indent=2, sort_keys=True))
+        return
+
     batch = load_api_batch(Path(args.batch_dir))
     if args.command == "plan-next":
         print(json.dumps(plan_next_trial(batch), ensure_ascii=False, indent=2, sort_keys=True))
@@ -935,6 +975,12 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             "PRT-003 refuses to make an API request without both --live and --confirm-live-run"
         )
+    from .evidence import EvidenceValidationError, require_valid_pilot_approval_proof
+
+    try:
+        require_valid_pilot_approval_proof(Path(args.batch_dir))
+    except EvidenceValidationError as exc:
+        raise SystemExit(str(exc)) from exc
     outcome = run_next_trial(batch, HttpResponsesTransport())
     print(json.dumps(outcome.as_dict(), ensure_ascii=False, indent=2, sort_keys=True))
 

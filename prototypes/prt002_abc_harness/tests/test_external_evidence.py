@@ -8,7 +8,12 @@ from prototypes.prt002_abc_harness.api_driver import create_api_batch, main, run
 from prototypes.prt002_abc_harness.evidence import (
     EVIDENCE_MANIFEST_FILENAME,
     EvidenceValidationError,
+    INTERRUPTION_DISPOSITION_FILENAME,
+    PILOT_APPROVAL_PROOF_FILENAME,
     archive_external_batch,
+    create_interruption_disposition,
+    create_pilot_approval_proof,
+    require_valid_pilot_approval_proof,
     validate_external_batch,
 )
 
@@ -117,6 +122,123 @@ def test_interrupted_external_batch_is_stop_required_and_never_archived(tmp_path
     assert not (batch.batch_dir / EVIDENCE_MANIFEST_FILENAME).exists()
     with pytest.raises(EvidenceValidationError, match="not archive-ready"):
         archive_external_batch(batch.batch_dir)
+
+
+def test_hard_crash_gets_an_immutable_stop_disposition_without_a_final_receipt(tmp_path, monkeypatch, capsys):
+    batch = make_batch(tmp_path)
+    opened_trials = []
+    original_open_trial = batch.open_trial
+
+    def capture_open_trial(trial_id):
+        trial = original_open_trial(trial_id)
+        opened_trials.append(trial)
+        return trial
+
+    monkeypatch.setattr(batch, "open_trial", capture_open_trial)
+    with pytest.raises(KeyboardInterrupt, match="synthetic process termination"):
+        run_next_trial(batch, CrashAfterStartedTransport())
+    opened_trials[0].telemetry.close()
+
+    disposition = create_interruption_disposition(batch.batch_dir)
+
+    trial_dir = batch.trial_dir(batch.trial_specs[0])
+    assert disposition["disposition"] == "PRESERVE_STOPPED_NOT_A_FINAL_RECEIPT"
+    assert disposition["acceptance_status"] == "NOT_ACCEPTED"
+    assert disposition["retry_permitted"] is False
+    assert disposition["resume_permitted"] is False
+    assert disposition["live_run_authorized"] is False
+    assert disposition["canonical_run_authorized"] is False
+    assert (batch.batch_dir / INTERRUPTION_DISPOSITION_FILENAME).is_file()
+    assert not (trial_dir / "result.json").exists()
+    assert not (trial_dir / "api-driver-outcome.json").exists()
+    assert not (trial_dir / "api-driver-receipt.json").exists()
+
+    report = validate_external_batch(batch.batch_dir)
+    assert report["validation_status"] == "STOP_REQUIRED"
+    assert report["interruption_disposition_status"] == "VALID"
+    assert report["next_safe_action"] == "DO_NOT_RETRY_OR_RESUME"
+
+    with pytest.raises(EvidenceValidationError, match="already exists"):
+        create_interruption_disposition(batch.batch_dir)
+
+    events_path = trial_dir / "events.jsonl"
+    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    events[0]["request_fingerprint"] = "tampered-test-only"
+    events_path.write_text(
+        "\n".join(json.dumps(event, sort_keys=True) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    tampered = validate_external_batch(batch.batch_dir)
+    assert tampered["validation_status"] == "INVALID"
+    assert any("facts no longer match" in error for error in tampered["errors"])
+
+    fresh_batch = make_batch(tmp_path / "cli")
+    original_open_trial = fresh_batch.open_trial
+    opened_trials = []
+
+    def capture_cli_open_trial(trial_id):
+        trial = original_open_trial(trial_id)
+        opened_trials.append(trial)
+        return trial
+
+    monkeypatch.setattr(fresh_batch, "open_trial", capture_cli_open_trial)
+    with pytest.raises(KeyboardInterrupt, match="synthetic process termination"):
+        run_next_trial(fresh_batch, CrashAfterStartedTransport())
+    opened_trials[0].telemetry.close()
+    main(["record-interruption-disposition", "--batch-dir", str(fresh_batch.batch_dir)])
+    cli_disposition = json.loads(capsys.readouterr().out)
+    assert cli_disposition["network_performed"] is False
+    assert cli_disposition["canonical_run_authorized"] is False
+
+
+def test_pilot_approval_proof_freezes_one_safe_scope_without_authorising_a_live_call(tmp_path, capsys):
+    batch = make_batch(tmp_path)
+
+    proof = create_pilot_approval_proof(
+        batch.batch_dir,
+        approval_reference="PM-DECISION-001",
+    )
+
+    assert proof["approval_status"] == "SCOPE_FROZEN_NOT_A_LIVE_AUTHORIZATION"
+    assert proof["separate_explicit_live_authorization_required"] is True
+    assert proof["network_performed"] is False
+    assert proof["pilot_scope"]["request_limits"]["max_api_trials"] == len(batch.trial_specs)
+    assert proof["pilot_scope"]["prohibitions"]["canonical_run_authorized"] is False
+    assert (batch.batch_dir / PILOT_APPROVAL_PROOF_FILENAME).is_file()
+    assert not (batch.batch_dir / "trials").exists()
+
+    report = validate_external_batch(batch.batch_dir)
+    assert report["validation_status"] == "ACTIVE_NOT_ARCHIVABLE"
+    assert report["pilot_approval_proof_status"] == "VALID"
+    assert report["network_performed"] is False
+
+    with pytest.raises(EvidenceValidationError, match="already exists"):
+        create_pilot_approval_proof(batch.batch_dir, approval_reference="PM-DECISION-002")
+
+    missing_proof_batch = make_batch(tmp_path / "missing-proof")
+    with pytest.raises(EvidenceValidationError, match="approval proof"):
+        require_valid_pilot_approval_proof(missing_proof_batch.batch_dir)
+
+    invalid_reference_batch = make_batch(tmp_path / "invalid-reference")
+    with pytest.raises(EvidenceValidationError, match="opaque identifier"):
+        create_pilot_approval_proof(
+            invalid_reference_batch.batch_dir,
+            approval_reference="not an opaque id",
+        )
+
+    cli_batch = make_batch(tmp_path / "cli")
+    main(
+        [
+            "create-pilot-approval-proof",
+            "--batch-dir",
+            str(cli_batch.batch_dir),
+            "--approval-reference",
+            "PM-DECISION-003",
+        ]
+    )
+    cli_proof = json.loads(capsys.readouterr().out)
+    assert cli_proof["network_performed"] is False
+    assert cli_proof["approval_status"] == "SCOPE_FROZEN_NOT_A_LIVE_AUTHORIZATION"
 
 
 def test_manifest_detects_terminal_artifact_tampering(tmp_path):

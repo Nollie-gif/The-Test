@@ -4,10 +4,10 @@ This module deliberately treats an external PRT-003 batch as a non-canonical
 prototype artifact.  It never opens a trial, makes a network request, retries
 an interrupted request, or creates a ``RUN-*`` record.
 
-The only optional mutation is an explicit, immutable ``evidence-manifest.json``
-after every pre-registered trial has reached a final recorded state.  A hard
-process interruption is not final: it remains STOP_REQUIRED until a later,
-separately implemented interruption-disposition contract exists.
+The optional mutations are immutable evidence artifacts only.  A terminal batch
+may receive an ``evidence-manifest.json``.  A hard process interruption may
+receive an ``interruption-disposition.json`` that records its STOP state, but
+never converts it into a final receipt, retry, resume, or RUN artifact.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -34,6 +35,10 @@ from .harness import PreregisteredBatch, TrialSpec
 EVIDENCE_MANIFEST_FILENAME = "evidence-manifest.json"
 EVIDENCE_MANIFEST_KIND = "noncanonical-api-driver-evidence-manifest"
 EVIDENCE_STATUS = "synthetic-prototype-only-not-a-RUN"
+INTERRUPTION_DISPOSITION_FILENAME = "interruption-disposition.json"
+INTERRUPTION_DISPOSITION_KIND = "noncanonical-api-driver-interruption-disposition"
+PILOT_APPROVAL_PROOF_FILENAME = "pilot-approval-proof.json"
+PILOT_APPROVAL_PROOF_KIND = "noncanonical-api-driver-pilot-approval-proof"
 
 _FINAL_ARTIFACTS = ("result.json", DRIVER_OUTCOME_FILENAME, DRIVER_RECEIPT_FILENAME)
 _ALLOWED_TRIAL_CHILDREN = {
@@ -55,10 +60,21 @@ _FORBIDDEN_EVIDENCE_KEYS = {
     "error_body",
     "messages",
 }
+_OPAQUE_APPROVAL_REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
 
 
 class EvidenceValidationError(RuntimeError):
     """Raised when an external batch cannot be safely archived."""
+
+
+def _require_opaque_approval_reference(value: object) -> str:
+    """Accept a short opaque decision reference, never an email or a file path."""
+
+    if not isinstance(value, str) or not _OPAQUE_APPROVAL_REFERENCE.fullmatch(value):
+        raise EvidenceValidationError(
+            "approval reference must be an opaque identifier; do not use names, emails, or paths"
+        )
+    return value
 
 
 def _file_sha256(path: Path) -> str:
@@ -315,6 +331,290 @@ def _trial_report(batch: PreregisteredBatch, spec: TrialSpec) -> tuple[dict[str,
     return report, errors
 
 
+def _driver_registration(batch: PreregisteredBatch) -> dict[str, Any]:
+    """Load the immutable PRT-003 registration without exposing raw request data."""
+
+    path = batch.batch_dir / DRIVER_REGISTRATION_FILENAME
+    try:
+        registration = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvidenceValidationError("driver registration is unreadable") from exc
+    if not isinstance(registration, dict):
+        raise EvidenceValidationError("driver registration must be a JSON object")
+
+    candidate = dict(registration)
+    recorded_digest = candidate.pop("registration_digest", None)
+    if not isinstance(recorded_digest, str) or recorded_digest != digest(candidate):
+        raise EvidenceValidationError("driver registration digest does not match immutable contents")
+    if registration.get("batch_id") != batch.batch_id:
+        raise EvidenceValidationError("driver registration belongs to a different batch")
+    if registration.get("batch_preregistration_digest") != batch.preregistration_digest:
+        raise EvidenceValidationError("driver registration does not match batch preregistration")
+    return registration
+
+
+def _interrupted_trial_records(
+    batch: PreregisteredBatch,
+    trial_reports: list[Mapping[str, Any]],
+    *,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    """Freeze only safe facts about hard-stopped trials, never request contents."""
+
+    records: list[dict[str, Any]] = []
+    for report in trial_reports:
+        if report.get("evidence_state") != "INTERRUPTED_STOP_REQUIRED":
+            continue
+        storage_id = report.get("trial_storage_id")
+        if not isinstance(storage_id, str):
+            errors.append("interruption disposition: interrupted trial has no safe storage ID")
+            continue
+        journal_path = batch.batch_dir / "trials" / storage_id / "events.jsonl"
+        if not journal_path.is_file() or journal_path.is_symlink():
+            errors.append("interruption disposition: interrupted trial journal is missing or unsafe")
+            continue
+        records.append(
+            {
+                "trial_id": report.get("trial_id"),
+                "trial_storage_id": storage_id,
+                "variant": report.get("variant"),
+                "event_journal_status": report.get("event_journal_status"),
+                "request_outcome": report.get("request_outcome"),
+                "api_request_started_count": report.get("api_request_started_count"),
+                "api_response_observed_count": report.get("api_response_observed_count"),
+                "api_request_incomplete_count": report.get("api_request_incomplete_count"),
+                "unresolved_request_starts": report.get("unresolved_request_starts"),
+                "request_journal_sha256": _file_sha256(journal_path),
+            }
+        )
+    return records
+
+
+def _pilot_scope(batch: PreregisteredBatch, registration: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the exact safe scope a future disposable pilot must keep frozen."""
+
+    if not batch.trial_specs:
+        raise EvidenceValidationError("batch has no pre-registered trial to freeze")
+    registration_digest = registration.get("registration_digest")
+    model_config = registration.get("model_config")
+    live_guard = registration.get("live_run_guard")
+    if not isinstance(registration_digest, str):
+        raise EvidenceValidationError("driver registration has no immutable digest")
+    if not isinstance(model_config, Mapping) or not isinstance(live_guard, Mapping):
+        raise EvidenceValidationError("driver registration has no safe fixed pilot configuration")
+
+    return {
+        "scope_kind": "pre-registered-disposable-synthetic-pilot",
+        "verification_scope": batch.manifest.get("verification_scope"),
+        "batch_id": batch.batch_id,
+        "batch_preregistration_digest": batch.preregistration_digest,
+        "driver_registration_digest": registration_digest,
+        "driver_version": registration.get("driver_version"),
+        "model_config": dict(model_config),
+        "scheduled_trials": [
+            {
+                "trial_id": spec.trial_id,
+                "trial_storage_id": spec.storage_id,
+                "ordinal": spec.ordinal,
+                "variant": spec.variant,
+                "trial_spec_digest": digest(spec.as_dict()),
+            }
+            for spec in batch.trial_specs
+        ],
+        "request_limits": {
+            "max_api_trials": len(batch.trial_specs),
+            "max_model_turns": live_guard.get("max_model_turns"),
+            "max_output_tokens_per_turn": live_guard.get("max_output_tokens_per_turn"),
+        },
+        "prohibitions": {
+            "canonical_run_authorized": False,
+            "retry_permitted": False,
+            "resume_permitted": False,
+        },
+    }
+
+
+def create_interruption_disposition(batch_dir: Path) -> dict[str, Any]:
+    """Write one immutable STOP record for a hard crash; it cannot finalize a trial."""
+
+    batch = load_api_batch(Path(batch_dir))
+    report = validate_external_batch(batch.batch_dir)
+    if report.get("validation_status") != "STOP_REQUIRED":
+        raise EvidenceValidationError(
+            "an interruption disposition requires a verified hard-stop external batch"
+        )
+    trial_reports = report.get("trials")
+    if not isinstance(trial_reports, list):
+        raise EvidenceValidationError("validated batch did not expose safe trial reports")
+    errors: list[str] = []
+    interrupted_trials = _interrupted_trial_records(batch, trial_reports, errors=errors)
+    if errors or not interrupted_trials:
+        raise EvidenceValidationError(
+            "an interruption disposition requires a readable request-started crash record"
+        )
+
+    disposition: dict[str, Any] = {
+        "artifact_kind": INTERRUPTION_DISPOSITION_KIND,
+        "evidence_status": EVIDENCE_STATUS,
+        "recorded_at": now_iso(),
+        "batch_id": batch.batch_id,
+        "batch_preregistration_digest": batch.preregistration_digest,
+        "source_validation_status": "STOP_REQUIRED",
+        "disposition": "PRESERVE_STOPPED_NOT_A_FINAL_RECEIPT",
+        "acceptance_status": "NOT_ACCEPTED",
+        "retry_permitted": False,
+        "resume_permitted": False,
+        "live_run_authorized": False,
+        "canonical_run_authorized": False,
+        "network_performed": False,
+        "interrupted_trials": interrupted_trials,
+    }
+    disposition["disposition_digest"] = digest(disposition)
+    _write_json_new(batch.batch_dir / INTERRUPTION_DISPOSITION_FILENAME, disposition)
+    return disposition
+
+
+def create_pilot_approval_proof(
+    batch_dir: Path,
+    *,
+    approval_reference: str,
+) -> dict[str, Any]:
+    """Freeze one future pilot scope without authorising an API request."""
+
+    batch = load_api_batch(Path(batch_dir))
+    initial_report = validate_external_batch(batch.batch_dir)
+    if initial_report.get("validation_status") != "ACTIVE_NOT_ARCHIVABLE":
+        raise EvidenceValidationError(
+            "pilot approval proof requires a verified active external batch before any request"
+        )
+    if any(batch.trial_dir(spec).exists() for spec in batch.trial_specs):
+        raise EvidenceValidationError(
+            "pilot approval proof must be created before any pre-registered trial opens"
+        )
+    registration = _driver_registration(batch)
+    proof: dict[str, Any] = {
+        "artifact_kind": PILOT_APPROVAL_PROOF_KIND,
+        "evidence_status": EVIDENCE_STATUS,
+        "created_at": now_iso(),
+        "approval_reference": _require_opaque_approval_reference(approval_reference),
+        "approval_status": "SCOPE_FROZEN_NOT_A_LIVE_AUTHORIZATION",
+        "separate_explicit_live_authorization_required": True,
+        "network_performed": False,
+        "pilot_scope": _pilot_scope(batch, registration),
+    }
+    proof["proof_digest"] = digest(proof)
+    _write_json_new(batch.batch_dir / PILOT_APPROVAL_PROOF_FILENAME, proof)
+    return proof
+
+
+def require_valid_pilot_approval_proof(batch_dir: Path) -> None:
+    """Require a frozen scope proof before the CLI can reach a live transport."""
+
+    report = validate_external_batch(Path(batch_dir))
+    if report.get("validation_status") != "ACTIVE_NOT_ARCHIVABLE":
+        raise EvidenceValidationError(
+            "a live pilot requires an active, non-interrupted external batch"
+        )
+    if report.get("pilot_approval_proof_status") != "VALID":
+        raise EvidenceValidationError(
+            "a valid immutable pilot approval proof is required before a live API request"
+        )
+
+
+def _validate_interruption_disposition(
+    batch: PreregisteredBatch,
+    trial_reports: list[Mapping[str, Any]],
+    *,
+    errors: list[str],
+) -> str:
+    """Check a disposition against the still-preserved interrupted evidence."""
+
+    path = batch.batch_dir / INTERRUPTION_DISPOSITION_FILENAME
+    if not path.exists():
+        return "ABSENT"
+    initial_error_count = len(errors)
+    disposition = _read_object(path, label=INTERRUPTION_DISPOSITION_FILENAME, errors=errors)
+    if disposition is None:
+        return "INVALID"
+
+    candidate = dict(disposition)
+    recorded_digest = candidate.pop("disposition_digest", None)
+    if not isinstance(recorded_digest, str) or recorded_digest != digest(candidate):
+        errors.append("interruption disposition: digest does not match immutable contents")
+    expected_records = _interrupted_trial_records(batch, trial_reports, errors=errors)
+    if not expected_records:
+        errors.append("interruption disposition: no current hard-stopped trial matches the record")
+    if disposition.get("artifact_kind") != INTERRUPTION_DISPOSITION_KIND:
+        errors.append("interruption disposition: wrong artifact kind")
+    if disposition.get("evidence_status") != EVIDENCE_STATUS:
+        errors.append("interruption disposition: wrong evidence status")
+    if disposition.get("batch_id") != batch.batch_id:
+        errors.append("interruption disposition: batch ID does not match batch.json")
+    if disposition.get("batch_preregistration_digest") != batch.preregistration_digest:
+        errors.append("interruption disposition: preregistration digest does not match batch.json")
+    if disposition.get("source_validation_status") != "STOP_REQUIRED":
+        errors.append("interruption disposition: source validation must remain STOP_REQUIRED")
+    if disposition.get("disposition") != "PRESERVE_STOPPED_NOT_A_FINAL_RECEIPT":
+        errors.append("interruption disposition: must preserve the stop without finalizing a receipt")
+    if disposition.get("acceptance_status") != "NOT_ACCEPTED":
+        errors.append("interruption disposition: acceptance must remain NOT_ACCEPTED")
+    for field in (
+        "retry_permitted",
+        "resume_permitted",
+        "live_run_authorized",
+        "canonical_run_authorized",
+        "network_performed",
+    ):
+        if disposition.get(field) is not False:
+            errors.append(f"interruption disposition: {field} must remain false")
+    if disposition.get("interrupted_trials") != expected_records:
+        errors.append("interruption disposition: interrupted trial facts no longer match preserved evidence")
+    return "VALID" if len(errors) == initial_error_count else "INVALID"
+
+
+def _validate_pilot_approval_proof(
+    batch: PreregisteredBatch,
+    *,
+    errors: list[str],
+) -> str:
+    """Check that a future-pilot scope proof is immutable and non-authorising."""
+
+    path = batch.batch_dir / PILOT_APPROVAL_PROOF_FILENAME
+    if not path.exists():
+        return "ABSENT"
+    initial_error_count = len(errors)
+    proof = _read_object(path, label=PILOT_APPROVAL_PROOF_FILENAME, errors=errors)
+    if proof is None:
+        return "INVALID"
+
+    candidate = dict(proof)
+    recorded_digest = candidate.pop("proof_digest", None)
+    if not isinstance(recorded_digest, str) or recorded_digest != digest(candidate):
+        errors.append("pilot approval proof: digest does not match immutable contents")
+    if proof.get("artifact_kind") != PILOT_APPROVAL_PROOF_KIND:
+        errors.append("pilot approval proof: wrong artifact kind")
+    if proof.get("evidence_status") != EVIDENCE_STATUS:
+        errors.append("pilot approval proof: wrong evidence status")
+    try:
+        expected_scope = _pilot_scope(batch, _driver_registration(batch))
+    except EvidenceValidationError as exc:
+        errors.append(f"pilot approval proof: {exc}")
+        expected_scope = None
+    try:
+        _require_opaque_approval_reference(proof.get("approval_reference"))
+    except EvidenceValidationError:
+        errors.append("pilot approval proof: approval reference is not a safe opaque identifier")
+    if proof.get("approval_status") != "SCOPE_FROZEN_NOT_A_LIVE_AUTHORIZATION":
+        errors.append("pilot approval proof: must not claim live authorization")
+    if proof.get("separate_explicit_live_authorization_required") is not True:
+        errors.append("pilot approval proof: separate live authorization must remain required")
+    if proof.get("network_performed") is not False:
+        errors.append("pilot approval proof: network_performed must remain false")
+    if expected_scope is not None and proof.get("pilot_scope") != expected_scope:
+        errors.append("pilot approval proof: frozen scope does not match the registered batch")
+    return "VALID" if len(errors) == initial_error_count else "INVALID"
+
+
 def _safe_manifest_path(batch_dir: Path, raw_path: object, *, errors: list[str]) -> Path | None:
     if not isinstance(raw_path, str) or not raw_path or "\\" in raw_path:
         errors.append("evidence manifest: artifact path must be a safe relative POSIX path")
@@ -339,6 +639,8 @@ def _safe_manifest_path(batch_dir: Path, raw_path: object, *, errors: list[str])
 
 def _expected_archive_paths(batch: PreregisteredBatch) -> list[str]:
     paths = ["batch.json", DRIVER_REGISTRATION_FILENAME]
+    if (batch.batch_dir / PILOT_APPROVAL_PROOF_FILENAME).is_file():
+        paths.append(PILOT_APPROVAL_PROOF_FILENAME)
     for spec in batch.trial_specs:
         trial_root = f"trials/{spec.storage_id}"
         paths.extend(f"{trial_root}/{filename}" for filename in ("trial.json", "events.jsonl", *_FINAL_ARTIFACTS))
@@ -437,7 +739,14 @@ def validate_external_batch(batch_dir: Path) -> dict[str, Any]:
         errors.append(f"{DRIVER_REGISTRATION_FILENAME}: wrong evidence status")
     if registration is not None and registration.get("driver_version") != DRIVER_VERSION:
         errors.append(f"{DRIVER_REGISTRATION_FILENAME}: wrong driver version")
-    allowed_root_children = {"batch.json", DRIVER_REGISTRATION_FILENAME, "trials", EVIDENCE_MANIFEST_FILENAME}
+    allowed_root_children = {
+        "batch.json",
+        DRIVER_REGISTRATION_FILENAME,
+        "trials",
+        EVIDENCE_MANIFEST_FILENAME,
+        INTERRUPTION_DISPOSITION_FILENAME,
+        PILOT_APPROVAL_PROOF_FILENAME,
+    }
     for child in batch.batch_dir.iterdir():
         if child.name not in allowed_root_children:
             errors.append(f"batch directory: unexpected artifact {child.name!r}")
@@ -458,6 +767,12 @@ def validate_external_batch(batch_dir: Path) -> dict[str, Any]:
         errors.extend(f"{spec.storage_id}: {error}" for error in trial_errors)
 
     states = {str(trial["evidence_state"]) for trial in trial_reports}
+    interruption_disposition_status = _validate_interruption_disposition(
+        batch,
+        trial_reports,
+        errors=errors,
+    )
+    pilot_approval_proof_status = _validate_pilot_approval_proof(batch, errors=errors)
     manifest_status = _validate_existing_manifest(batch, errors=errors)
     if errors:
         validation_status = "INVALID"
@@ -482,6 +797,8 @@ def validate_external_batch(batch_dir: Path) -> dict[str, Any]:
         "batch_preregistration_digest": batch.preregistration_digest,
         "validation_status": validation_status,
         "archive_manifest_status": manifest_status,
+        "interruption_disposition_status": interruption_disposition_status,
+        "pilot_approval_proof_status": pilot_approval_proof_status,
         "archive_permitted": validation_status == "ARCHIVE_READY",
         "network_performed": False,
         "mutation_performed": False,
@@ -492,10 +809,12 @@ def validate_external_batch(batch_dir: Path) -> dict[str, Any]:
 
 
 def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
-    """Atomically create one immutable external archive artifact."""
+    """Atomically create one immutable external evidence artifact."""
 
     if path.exists():
-        raise EvidenceValidationError("evidence manifest already exists and may not be overwritten")
+        raise EvidenceValidationError(
+            f"immutable evidence artifact already exists and may not be overwritten: {path.name}"
+        )
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -511,7 +830,9 @@ def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
         temporary_path = Path(temporary.name)
     try:
         if path.exists():
-            raise EvidenceValidationError("evidence manifest already exists and may not be overwritten")
+            raise EvidenceValidationError(
+                f"immutable evidence artifact already exists and may not be overwritten: {path.name}"
+            )
         os.replace(temporary_path, path)
     except Exception:
         temporary_path.unlink(missing_ok=True)
