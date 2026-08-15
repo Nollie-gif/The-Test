@@ -25,6 +25,20 @@ The same configuration is pre-registered beside every batch. It must remain
 identical for variants A, B, and C. The experiment changes the cockpit/tool
 surface, never the pilot.
 
+## Disposable single-trial pilot mode
+
+The ordinary PRT-002 A/B/C schedule remains a balanced nine-trial research
+batch. A separately labelled **disposable single-trial pilot** may instead
+freeze exactly one Variant-C synthetic trial. It is not comparative research
+and cannot create a canonical run.
+
+Its fixed guardrails are: `gpt-5.6-terra`, medium reasoning, at most four
+model turns, at most 512 output tokens per turn, an 8,000-byte pre-transport
+payload ceiling, and a conservative `$0.10` cumulative cost envelope using
+the pre-registered input/output price constants. It sets `store: false` and
+does not use conversation persistence, recap/summary/compaction fields,
+background continuation, or external retrieval.
+
 ## Scope and authority
 
 PRT-003 calls only the functions exposed by the already implemented PRT-002
