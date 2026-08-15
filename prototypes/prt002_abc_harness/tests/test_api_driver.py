@@ -1,4 +1,5 @@
 import json
+import ssl
 import urllib.error
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from prototypes.prt002_abc_harness.api_driver import (
     ApiDriverError,
     DriverConfig,
     DISPOSABLE_PILOT_CONFIG,
+    HttpResponsesTransport,
     _transport_error_kind,
     _enforce_disposable_cost_envelope,
     create_disposable_pilot_batch,
@@ -277,6 +279,37 @@ def test_driver_records_unknown_request_outcome_and_rejects_the_trial_after_time
 )
 def test_transport_error_kind_uses_only_allowlisted_categories(exc, expected_kind):
     assert _transport_error_kind(exc) == expected_kind
+
+
+def test_http_transport_tls_preflight_blocks_unusable_sslkeylogfile_without_network(
+    monkeypatch,
+):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("SSLKEYLOGFILE", "protected-virtual-file")
+
+    def refuse_tls_context():
+        raise PermissionError("synthetic protected file")
+
+    monkeypatch.setattr(ssl, "create_default_context", refuse_tls_context)
+
+    with pytest.raises(ApiDriverError, match="SSLKEYLOGFILE is unusable"):
+        HttpResponsesTransport().preflight()
+
+
+def test_http_transport_tls_preflight_never_persists_or_echoes_the_os_error(
+    monkeypatch,
+):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("SSLKEYLOGFILE", "protected-virtual-file")
+
+    def refuse_tls_context():
+        raise PermissionError("synthetic protected file")
+
+    monkeypatch.setattr(ssl, "create_default_context", refuse_tls_context)
+
+    with pytest.raises(ApiDriverError) as error:
+        HttpResponsesTransport().preflight()
+    assert "synthetic protected file" not in str(error.value)
 
 
 def test_driver_persists_network_error_kind_without_raw_error_text(tmp_path):
