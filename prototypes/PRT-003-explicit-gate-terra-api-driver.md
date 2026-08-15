@@ -65,6 +65,10 @@ The driver is safe by default:
    never written to source, batch artifacts, logs, or GitHub.
 5. The OpenAI project remains separately protected by its organization hard
    spend limit.
+6. If a process stops after the durable \`api_request_started\` journal event
+   but before a final receipt, the batch is blocked. \`inspect-interrupted\`
+   produces a read-only \`STOP_REQUIRED\` report; it never retries, resumes,
+   finalizes, or opens another trial.
 
 The driver uses the Responses API function-calling loop and records response
 IDs, token counts when returned, model-turn count, tool telemetry, and the
@@ -87,6 +91,11 @@ python -m prototypes.prt002_abc_harness.api_driver create-batch \\
 
 # No API call: inspect the next pre-registered trial.
 python -m prototypes.prt002_abc_harness.api_driver plan-next \\
+  --batch-dir /safe/external/output/BATCH-...
+
+# No API call and no mutation: inspect an interrupted batch. A STOP_REQUIRED
+# result means do not retry or resume the trial.
+python -m prototypes.prt002_abc_harness.api_driver inspect-interrupted \\
   --batch-dir /safe/external/output/BATCH-...
 
 # Exactly one paid synthetic API trial, only after an explicit go-ahead.

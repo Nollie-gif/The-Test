@@ -229,8 +229,121 @@ def _next_spec(batch: PreregisteredBatch):
         if not trial_dir.exists():
             return spec
         if not (trial_dir / "result.json").is_file():
-            raise ApiDriverError("a previously opened trial must be finalized before PRT-003 continues")
+            raise ApiDriverError(
+                "an unfinalized PRT-003 trial blocks this batch; inspect it with "
+                "inspect-interrupted and do not retry or resume it"
+            )
     raise ApiDriverError("this pre-registered batch has no remaining trials")
+
+
+def _event_journal_summary(events_path: Path) -> dict[str, Any]:
+    """Read only the safe event counts needed to stop an interrupted trial."""
+
+    counts = {
+        "api_request_started_count": 0,
+        "api_response_observed_count": 0,
+        "api_request_incomplete_count": 0,
+    }
+    if not events_path.is_file():
+        return {
+            "event_journal_status": "MISSING",
+            **counts,
+            "unresolved_request_starts": None,
+        }
+
+    try:
+        with events_path.open(encoding="utf-8") as journal:
+            for line in journal:
+                if not line.strip():
+                    continue
+                event = json.loads(line)
+                if not isinstance(event, Mapping):
+                    raise ValueError("event must be an object")
+                event_type = event.get("event_type")
+                if event_type == "api_request_started":
+                    counts["api_request_started_count"] += 1
+                elif event_type == "api_response_observed":
+                    counts["api_response_observed_count"] += 1
+                elif event_type == "api_request_incomplete":
+                    counts["api_request_incomplete_count"] += 1
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return {
+            "event_journal_status": "UNREADABLE",
+            **counts,
+            "unresolved_request_starts": None,
+        }
+
+    return {
+        "event_journal_status": "READABLE",
+        **counts,
+        "unresolved_request_starts": max(
+            0,
+            counts["api_request_started_count"]
+            - counts["api_response_observed_count"]
+            - counts["api_request_incomplete_count"],
+        ),
+    }
+
+
+def _interruption_request_outcome(summary: Mapping[str, Any]) -> str:
+    """Classify an unfinalized trial without claiming a hidden API outcome."""
+
+    if summary["event_journal_status"] == "MISSING":
+        return "UNDETERMINED_JOURNAL_MISSING"
+    if summary["event_journal_status"] != "READABLE":
+        return "UNDETERMINED_JOURNAL_UNREADABLE"
+    if summary["unresolved_request_starts"]:
+        return "UNKNOWN"
+    if summary["api_request_started_count"]:
+        return "REQUESTS_JOURNALED_BUT_TRIAL_UNFINALIZED"
+    return "NO_DURABLE_API_REQUEST_STARTED"
+
+
+def inspect_interrupted_trials(
+    batch: PreregisteredBatch,
+    *,
+    config: DriverConfig = DEFAULT_DRIVER_CONFIG,
+) -> dict[str, Any]:
+    """Read-only recovery stop report; it never retries, resumes, or opens a trial."""
+
+    _validated_registration(batch, config)
+    interrupted_trials: list[dict[str, Any]] = []
+    for spec in batch.trial_specs:
+        trial_dir = batch.trial_dir(spec)
+        if not trial_dir.exists() or (trial_dir / "result.json").is_file():
+            continue
+        journal = _event_journal_summary(trial_dir / "events.jsonl")
+        interrupted_trials.append(
+            {
+                "trial_id": spec.trial_id,
+                "trial_storage_id": spec.storage_id,
+                "variant": spec.variant,
+                "trial_status": "INCOMPLETE",
+                "acceptance_status": "NOT_ACCEPTED",
+                "recovery_status": "STOP_REQUIRED",
+                "request_outcome": _interruption_request_outcome(journal),
+                "result_present": False,
+                "request_journal_path": "events.jsonl",
+                "retry_permitted": False,
+                "resume_permitted": False,
+                **journal,
+            }
+        )
+
+    return {
+        "artifact_kind": "noncanonical-api-driver-interruption-inspection",
+        "evidence_status": "synthetic-prototype-only-not-a-RUN",
+        "batch_id": batch.batch_id,
+        "inspection_status": (
+            "RECOVERY_STOP_REQUIRED" if interrupted_trials else "NO_UNFINALIZED_TRIAL"
+        ),
+        "network_performed": False,
+        "mutation_performed": False,
+        "interrupted_trials": interrupted_trials,
+        "next_safe_action": (
+            "DO_NOT_RETRY_OR_RESUME" if interrupted_trials else "NO_INTERRUPTED_TRIAL_FOUND"
+        ),
+    }
 
 
 def _driver_registration(
@@ -729,6 +842,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     plan.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
 
+    inspect = commands.add_parser(
+        "inspect-interrupted",
+        help="Read-only STOP report for any unfinalized trial; never retries or resumes it.",
+    )
+    inspect.add_argument("--batch-dir", required=True, help="Existing external BATCH-* directory")
+
     run = commands.add_parser(
         "run-next",
         help="Run exactly one next trial only after two explicit live-run flags.",
@@ -764,6 +883,17 @@ def main(argv: list[str] | None = None) -> None:
     batch = load_api_batch(Path(args.batch_dir))
     if args.command == "plan-next":
         print(json.dumps(plan_next_trial(batch), ensure_ascii=False, indent=2, sort_keys=True))
+        return
+
+    if args.command == "inspect-interrupted":
+        print(
+            json.dumps(
+                inspect_interrupted_trials(batch),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return
 
     if not args.live or not args.confirm_live_run:

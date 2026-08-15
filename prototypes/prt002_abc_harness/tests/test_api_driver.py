@@ -11,6 +11,7 @@ from prototypes.prt002_abc_harness.api_driver import (
     ApiDriverError,
     DriverConfig,
     create_api_batch,
+    inspect_interrupted_trials,
     load_api_batch,
     main,
     plan_next_trial,
@@ -97,6 +98,28 @@ class TimeoutTransport:
     def create(self, payload):
         self.payloads.append(payload)
         raise TimeoutError("synthetic transport timeout")
+
+
+class CrashAfterStartedTransport:
+    """Simulates process termination after the durable request-started journal event."""
+
+    def __init__(self):
+        self.payloads = []
+
+    def create(self, payload):
+        self.payloads.append(payload)
+        raise KeyboardInterrupt("synthetic process termination")
+
+
+class NeverCalledTransport:
+    """Fails the test if restart handling ever attempts another API request."""
+
+    def __init__(self):
+        self.payloads = []
+
+    def create(self, payload):
+        self.payloads.append(payload)
+        raise AssertionError("an interrupted trial must never be retried or resumed")
 
 
 def make_batch(tmp_path: Path):
@@ -193,6 +216,55 @@ def test_driver_records_unknown_request_outcome_and_rejects_the_trial_after_time
     assert receipt["trial_status"] == "INCOMPLETE"
     assert receipt["acceptance_status"] == "NOT_ACCEPTED"
     assert receipt["unknown_request_attempts"] == 1
+
+
+def test_restart_after_durable_request_started_stops_without_retry_or_resume(tmp_path, monkeypatch, capsys):
+    batch = make_batch(tmp_path)
+    crash_transport = CrashAfterStartedTransport()
+    opened_trials = []
+    original_open_trial = batch.open_trial
+
+    def capture_open_trial(trial_id):
+        trial = original_open_trial(trial_id)
+        opened_trials.append(trial)
+        return trial
+
+    monkeypatch.setattr(batch, "open_trial", capture_open_trial)
+    with pytest.raises(KeyboardInterrupt, match="synthetic process termination"):
+        run_next_trial(batch, crash_transport)
+    opened_trials[0].telemetry.close()  # Mimics file-handle cleanup after process termination.
+
+    trial_dir = batch.trial_dir(batch.trial_specs[0])
+    assert len(crash_transport.payloads) == 1
+    assert (trial_dir / "result.json").exists() is False
+    assert (trial_dir / DRIVER_OUTCOME_FILENAME).exists() is False
+    assert (trial_dir / DRIVER_RECEIPT_FILENAME).exists() is False
+
+    fresh_batch = load_api_batch(batch.batch_dir)
+    report = inspect_interrupted_trials(fresh_batch)
+    assert report["inspection_status"] == "RECOVERY_STOP_REQUIRED"
+    assert report["network_performed"] is False
+    assert report["mutation_performed"] is False
+    assert report["next_safe_action"] == "DO_NOT_RETRY_OR_RESUME"
+    assert len(report["interrupted_trials"]) == 1
+    interrupted = report["interrupted_trials"][0]
+    assert interrupted["request_outcome"] == "UNKNOWN"
+    assert interrupted["api_request_started_count"] == 1
+    assert interrupted["unresolved_request_starts"] == 1
+    assert interrupted["retry_permitted"] is False
+    assert interrupted["resume_permitted"] is False
+
+    main(["inspect-interrupted", "--batch-dir", str(fresh_batch.batch_dir)])
+    cli_report = json.loads(capsys.readouterr().out)
+    assert cli_report["inspection_status"] == "RECOVERY_STOP_REQUIRED"
+
+    blocked_transport = NeverCalledTransport()
+    with pytest.raises(ApiDriverError, match="do not retry or resume"):
+        plan_next_trial(fresh_batch)
+    with pytest.raises(ApiDriverError, match="do not retry or resume"):
+        run_next_trial(fresh_batch, blocked_transport)
+    assert blocked_transport.payloads == []
+    assert len(list((fresh_batch.batch_dir / "trials").iterdir())) == 1
 
 
 def test_driver_refuses_config_drift_and_tampered_registration_before_opening_a_trial(tmp_path):
