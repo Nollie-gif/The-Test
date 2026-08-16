@@ -4,7 +4,8 @@
   "variant": "EXAMPLE_ONLY",
   "date": "2026-08-13",
   "agent_model": null,
-  "authoritative_success": false,
+  "evidence_status": "unavailable",
+  "authoritative_success": null,
   "completion_time_ms": 0,
   "tool_calls": 0,
   "wrong_tool_calls": 0,
@@ -12,13 +13,13 @@
   "wrong_route_target_calls": 0,
   "permission_routing_errors": 0,
   "recovery_steps": 0,
-  "recovery_time_ms": 0,
+  "recovery_time_ms": null,
   "human_interventions": 0,
   "false_success": false,
-  "final_state_correct": false,
+  "final_state_correct": null,
   "context_volume": null,
   "procedural_decisions": null,
   "receipt_complete": null,
   "failure_stage": null,
-  "notes": "Schema example only. RUN-000 is reserved and must never be counted as experimental evidence."
+  "notes": "Schema example only. Demonstrates explicit UNKNOWN/unavailable evidence semantics. RUN-000 is reserved and must never be counted as experimental evidence."
 }
