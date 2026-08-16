@@ -143,18 +143,29 @@ after that batch begins.
 
 ## Order-effect replication hypothesis
 
-The first canonical EXP-001 batch should use a pre-registered balanced/randomized A/B/C order to reduce obvious sequence bias. However, balanced order is a **baseline condition**, not proof that order is irrelevant.
+The first canonical EXP-001 condition uses a pre-registered balanced/randomized A/B/C order to reduce obvious sequence bias. Balanced order is a **baseline condition**, not proof that order is irrelevant.
 
-EXP-001 therefore treats presentation order as a replication variable to be tested in later, separately pre-registered batches while keeping the task, model/settings, A/B/C contracts, success condition, verifier, metrics, and analysis procedure frozen.
+EXP-001 therefore treats presentation order as a replication variable while keeping the task, model/settings, A/B/C contracts, success condition, verifier, metrics, and analysis procedure frozen.
 
-At minimum, the completion cycle should include:
+There are **3 environment variants** and **7 presentation-order conditions**:
 
-1. the balanced/randomized baseline batch;
-2. a fixed `A → B → C` order batch;
-3. a fixed `B → A → C` order batch;
-4. the remaining distinct A/B/C order permutations needed to complete the planned order-effect cycle, unless a predeclared stopping rule is adopted before those batches begin.
+1. balanced/randomized baseline;
+2. fixed `A → B → C`;
+3. fixed `A → C → B`;
+4. fixed `B → A → C`;
+5. fixed `B → C → A`;
+6. fixed `C → A → B`;
+7. fixed `C → B → A`.
 
-Each order condition is a **replication batch**, not a new environment variant. Results must be reported by batch/order as well as in any pooled analysis so an apparent A/B/C effect is not silently attributed to interface design when it may depend on sequence, learning, fatigue, carryover, or another order-related effect.
+The minimum EXP-001 completion cycle is **30 canonical trials = 10 runs per environment variant**. The pre-registered allocation is:
+
+- **4 balanced/randomized triplets = 12 trials**;
+- **6 fixed-order triplets = 18 trials**, one triplet for each fixed permutation;
+- total: **10 A + 10 B + 10 C = 30 trials**.
+
+The earlier 27-trial idea is superseded because it would provide only 9 runs per environment variant and would violate the already-approved minimum of 10 runs per variant.
+
+The seven order conditions are **replication conditions, not seven environment variants**. Results must be reported by condition as well as in any pooled analysis so an apparent A/B/C effect is not silently attributed to interface design when it may depend on sequence, learning, fatigue, carryover, or another order-related effect.
 
 ### Hypothesis
 
