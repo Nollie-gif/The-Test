@@ -70,13 +70,15 @@ def test_manifest_is_noncanonical_and_cannot_authorize_execution():
 
 def test_validator_rejects_a_damaged_cycle():
     trials = list(build_completion_cycle())
+    original = trials[-1]
+    replacement_variant = "B" if original.variant != "B" else "A"
     trials[-1] = PlannedTrial(
-        ordinal=trials[-1].ordinal,
-        triplet_index=trials[-1].triplet_index,
-        position_in_triplet=trials[-1].position_in_triplet,
-        variant="A",
-        order_condition=trials[-1].order_condition,
-        order=trials[-1].order,
+        ordinal=original.ordinal,
+        triplet_index=original.triplet_index,
+        position_in_triplet=original.position_in_triplet,
+        variant=replacement_variant,
+        order_condition=original.order_condition,
+        order=original.order,
     )
 
     with pytest.raises(ValueError):
