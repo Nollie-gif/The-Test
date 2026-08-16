@@ -141,6 +141,27 @@ The next data-collection decision is the exact model identity for a batch. No
 task, prompt, target, metric, success condition, or order policy may change
 after that batch begins.
 
+## Order-effect replication hypothesis
+
+The first canonical EXP-001 batch should use a pre-registered balanced/randomized A/B/C order to reduce obvious sequence bias. However, balanced order is a **baseline condition**, not proof that order is irrelevant.
+
+EXP-001 therefore treats presentation order as a replication variable to be tested in later, separately pre-registered batches while keeping the task, model/settings, A/B/C contracts, success condition, verifier, metrics, and analysis procedure frozen.
+
+At minimum, the completion cycle should include:
+
+1. the balanced/randomized baseline batch;
+2. a fixed `A → B → C` order batch;
+3. a fixed `B → A → C` order batch;
+4. the remaining distinct A/B/C order permutations needed to complete the planned order-effect cycle, unless a predeclared stopping rule is adopted before those batches begin.
+
+Each order condition is a **replication batch**, not a new environment variant. Results must be reported by batch/order as well as in any pooled analysis so an apparent A/B/C effect is not silently attributed to interface design when it may depend on sequence, learning, fatigue, carryover, or another order-related effect.
+
+### Hypothesis
+
+If the environment effect is robust, the relative A/B/C pattern should reproduce across materially different pre-registered presentation orders. If it does not, order sensitivity is itself an experimental result and the original environment claim must be narrowed rather than averaged into existence.
+
+This hypothesis is not evidence that an order effect exists. It is a preregistered threat-to-validity check generated during design review.
+
 ## Initial hypothesis
 
 Variant C should reduce routing failures, tool churn, recovery cost, and procedural cognitive load without weakening persistence safety, provided the composite action preserves the existing validation and receipt boundary rather than bypassing it.
