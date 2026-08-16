@@ -403,8 +403,14 @@ def _pilot_scope(batch: PreregisteredBatch, registration: Mapping[str, Any]) -> 
     if not isinstance(model_config, Mapping) or not isinstance(live_guard, Mapping):
         raise EvidenceValidationError("driver registration has no safe fixed pilot configuration")
 
+    scope_kind = (
+        "pre-registered-exp-001-research-cycle"
+        if batch.manifest.get("batch_mode") == "exp-001-frozen-30-trial-cycle"
+        else "pre-registered-disposable-synthetic-pilot"
+    )
+
     return {
-        "scope_kind": "pre-registered-disposable-synthetic-pilot",
+        "scope_kind": scope_kind,
         "verification_scope": batch.manifest.get("verification_scope"),
         "batch_id": batch.batch_id,
         "batch_preregistration_digest": batch.preregistration_digest,
