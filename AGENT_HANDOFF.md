@@ -4,6 +4,20 @@
 >
 > **Prime rule:** This file is a continuity map, not research evidence and not implementation authority. Current repository files, schemas, CI, registered research records, actual run artifacts, and verified branch state outrank remembered conversation.
 
+## COLD-START AUTHORITY GATE
+
+Before any repository mutation in a fresh chat or handoff:
+
+1. Read the current The-Test Asana Control Room, especially `00 START HERE`.
+2. Treat Asana as the authority for current workflow permission and the next allowed action.
+3. Do not assume a handoff prompt carries every active gate or restriction.
+4. Repository file/code writes must originate from the verified local clone through the guarded commit flow.
+5. GitHub connectors may be used read-only for inspection, review, CI/status checks, and evidence gathering, but must not create or modify repository files unless a future reviewed protocol explicitly authorizes that path.
+6. If Asana, repository state, or the handoff disagree: STOP and reconcile them before mutation.
+
+This gate exists because INC-002 demonstrated that a safeguard which survives only through remembered handoff instructions can disappear across chat boundaries.
+
+
 ## 🛡️ PRIMARY TAKEOVER MODE — GPT-5.6 Terra as PM / engineering guardian
 
 The user has chosen a new **GPT-5.6 Terra** primary ChatGPT session to take over The-Test as the PM/research/engineering guardian for the current integration phase.
