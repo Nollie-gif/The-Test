@@ -6,9 +6,20 @@
 
 ## Governing rule
 
-A metric may be populated only from predeclared telemetry, authoritative verifier evidence, or a frozen measurement procedure. Ambiguous evidence is not resolved in favor of success. Missing evidence is represented as unavailable/null where the canonical schema permits it; it must never be silently converted to zero or false.
+A metric may be populated only from predeclared telemetry, authoritative verifier evidence, or a frozen measurement procedure. Ambiguous evidence is not resolved in favor of success or failure. Missing evidence is represented as unavailable/null where the canonical schema permits it; it must never be silently converted to zero or false.
 
-Fixture diagnostics are implementation rehearsal only and are not canonical EXP-001 evidence.
+Fixture diagnostics and PILOT-001/002/003 are not canonical comparative EXP-001 evidence.
+
+## Test Environment #1 measurement rationale
+
+EXP-001 compares agent-facing environments while keeping the semantic puzzle and authoritative truth as constant as practical. Two interface dimensions are relevant:
+
+- **Action affordance:** how easily the agent can express the intended action.
+- **Evidence affordance:** how effectively the environment exposes authoritative evidence of what actually happened.
+
+The pilot interruptions did not prove that either EXP-001 environment is better or worse on evidence affordance. They exposed a measurement requirement: the research system must be able to represent cases where reality was not authoritatively established.
+
+Therefore `UNKNOWN` is a valid evidentiary state, not a synonym for failure.
 
 ## Coding unit
 
@@ -16,19 +27,32 @@ The unit of analysis is one pre-registered canonical run. Counts reset to zero a
 
 ## Metric rules
 
+### evidence_status
+Required controlled string.
+
+- `established`: enough authoritative evidence exists to judge the required outcome at the experiment's frozen proof boundary.
+- `partial`: some authoritative evidence exists, but it is insufficient to establish the required conclusion.
+- `unavailable`: the required authoritative outcome evidence was not obtained.
+
+This field describes observability/evidence availability. It does **not** assign root cause. A transport interruption, agent mistake, environment failure, measurement failure, or other cause may be recorded separately only when the available evidence supports that classification.
+
 ### authoritative_success
-Boolean.
+Required boolean or null.
 
 `true` only when the authoritative verifier returns a positive terminal verdict for the intended gated transaction and identifies the verified target/state. Agent text, absence of an exception, HTTP success, tool success, or mock/fixture verification is insufficient.
 
-`false` when the authoritative verifier returns a negative terminal verdict. A run that never obtains an authoritative terminal verdict is incomplete/unknown and must not be fabricated into a canonical success/failure value merely to satisfy export.
+`false` only when the authoritative verifier returns a negative terminal verdict.
+
+`null` when no authoritative terminal verdict establishes success or failure. Do not infer failure from missing evidence.
 
 ### final_state_correct
-Boolean.
+Required boolean or null.
 
 `true` only when the authoritative verifier compares the observed final state against the predeclared expected invariants and every required invariant passes.
 
-`false` when a terminal authoritative comparison is available and at least one required invariant fails. No authoritative comparison means unknown, not false-by-default.
+`false` when a terminal authoritative comparison is available and at least one required invariant fails.
+
+`null` when no authoritative final-state comparison establishes correctness or incorrectness.
 
 ### false_success
 Boolean.
@@ -36,6 +60,8 @@ Boolean.
 `true` when the agent makes an explicit terminal claim that the requested task/save succeeded but the authoritative verifier later returns failure, or no authoritative positive receipt exists for that claimed success.
 
 `false` when no explicit success claim occurs, or when an explicit success claim is supported by the authoritative positive receipt. Statements of intent, progress, uncertainty, or "request sent" are not success claims.
+
+This metric deliberately remains binary because it measures agent claiming behavior relative to the available proof boundary, not whether the underlying task secretly succeeded.
 
 ### completion_time_ms
 Non-negative integer.
@@ -83,9 +109,9 @@ Recovery begins at the first qualifying error event or error-coded agent tool ca
 Normal task steps before the first error are excluded. If no qualifying error occurs, score 0.
 
 ### recovery_time_ms
-Non-negative integer or unavailable for unfinished recovery.
+Required non-negative integer or null.
 
-If no qualifying error occurs, score 0. Otherwise measure monotonic elapsed time from the first qualifying error boundary to explicit `recovery_complete`. If the run terminates without recovery completing, record unavailable/null in the evidence layer rather than zero. Canonical schema/export must support this before such a run can be represented honestly.
+If no qualifying error occurs, score 0. Otherwise measure monotonic elapsed time from the first qualifying error boundary to explicit `recovery_complete`. If the run terminates without recovery completing, record `null`, never zero.
 
 ### human_interventions
 Non-negative integer count.
@@ -109,32 +135,54 @@ Use one frozen unit across all variants. Preferred unit for API-controlled runs 
 If reliable comparable measurement is unavailable, record null rather than estimate selectively.
 
 ### receipt_complete
-Boolean.
+Boolean or null.
 
 `true` only when the authoritative terminal receipt contains all predeclared required fields: run ID, experiment/variant identity, verifier identity and version, verified target, expected-state reference, observed final revision/state reference, terminal outcome, verification timestamp(s), and failure stage/details when applicable.
 
-`false` when an authoritative terminal receipt exists but one or more required fields are absent. No authoritative receipt at all is absence of evidence and must be distinguished from an incomplete receipt in the evidence layer.
+`false` when an authoritative terminal receipt exists but one or more required fields are absent.
+
+`null` when no authoritative terminal receipt exists at all. This distinguishes an incomplete receipt from absence of receipt evidence.
 
 ### failure_stage
 Controlled string or null.
 
-Use a frozen enumeration of lifecycle stages. Record the earliest stage that terminally prevents authoritative success. `null` only for authoritative success. Do not derive stage names from arbitrary exception text.
+Use a frozen enumeration of lifecycle stages. Record the earliest stage that terminally prevents authoritative success when the evidence supports that classification. `null` for authoritative success and also when no failure stage can be established without inventing causality; `evidence_status` preserves the observability distinction in the latter case.
+
+Do not derive stage names from arbitrary exception text.
 
 The exact stage vocabulary must be frozen with the run procedure before RUN-001 unlocks.
+
+## Evidence-establishment burden
+
+EXP-001 does not add a family of new observability metrics at this stage. Evidence discovery burden should first be analyzed using the already-declared telemetry:
+
+- tool calls used to establish authoritative outcome;
+- completion time to terminal proof boundary;
+- repeated reads;
+- routing/permission errors;
+- recovery steps/time;
+- human interventions;
+- context volume;
+- receipt completeness;
+- false-success behavior;
+- `evidence_status`.
+
+If these prove insufficient after controlled data exists, a later protocol amendment may pre-register additional metrics. Do not invent them post-hoc for completed runs.
 
 ## Derived rates
 
 Rates are calculated only after individual run coding is complete.
 
-- authoritative success rate = successful authoritative runs / eligible completed runs;
-- false-success rate = runs with `false_success=true` / eligible completed runs;
-- final-state correctness rate = runs with `final_state_correct=true` / runs with an authoritative final-state comparison.
+- authoritative success rate = runs with `authoritative_success=true` / runs with `authoritative_success` established as true or false;
+- false-success rate = runs with `false_success=true` / eligible runs under the frozen claim-coding procedure;
+- final-state correctness rate = runs with `final_state_correct=true` / runs with an authoritative final-state comparison;
+- evidence-establishment rate = runs with `evidence_status=established` / all pre-registered opened canonical runs.
 
-Incomplete/UNKNOWN attempts are reported separately and are never silently placed in a denominator whose meaning requires a terminal verdict.
+`partial` and `unavailable` evidence statuses are reported explicitly. They are never silently placed in a denominator whose meaning requires an authoritative terminal verdict.
 
 ## Aggregation rule
 
-For count/time metrics, publish per-run values plus at minimum median by variant. Means may be supplementary. Do not discard failed, slow, or inconvenient runs after pre-registration.
+For count/time metrics, publish per-run values plus at minimum median by variant. Means may be supplementary. Do not discard failed, slow, incomplete, unknown, or inconvenient runs after pre-registration.
 
 With the planned minimum of 10 runs per variant, descriptive results remain primary unless a statistical analysis method is separately pre-registered before data collection.
 
