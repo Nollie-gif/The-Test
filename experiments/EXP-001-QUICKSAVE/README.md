@@ -141,6 +141,38 @@ The next data-collection decision is the exact model identity for a batch. No
 task, prompt, target, metric, success condition, or order policy may change
 after that batch begins.
 
+## Order-effect replication hypothesis
+
+The first canonical EXP-001 condition uses a pre-registered balanced/randomized A/B/C order to reduce obvious sequence bias. Balanced order is a **baseline condition**, not proof that order is irrelevant.
+
+EXP-001 therefore treats presentation order as a replication variable while keeping the task, model/settings, A/B/C contracts, success condition, verifier, metrics, and analysis procedure frozen.
+
+There are **3 environment variants** and **7 presentation-order conditions**:
+
+1. balanced/randomized baseline;
+2. fixed `A → B → C`;
+3. fixed `A → C → B`;
+4. fixed `B → A → C`;
+5. fixed `B → C → A`;
+6. fixed `C → A → B`;
+7. fixed `C → B → A`.
+
+The minimum EXP-001 completion cycle is **30 canonical trials = 10 runs per environment variant**. The pre-registered allocation is:
+
+- **4 balanced/randomized triplets = 12 trials**;
+- **6 fixed-order triplets = 18 trials**, one triplet for each fixed permutation;
+- total: **10 A + 10 B + 10 C = 30 trials**.
+
+The earlier 27-trial idea is superseded because it would provide only 9 runs per environment variant and would violate the already-approved minimum of 10 runs per variant.
+
+The seven order conditions are **replication conditions, not seven environment variants**. Results must be reported by condition as well as in any pooled analysis so an apparent A/B/C effect is not silently attributed to interface design when it may depend on sequence, learning, fatigue, carryover, or another order-related effect.
+
+### Hypothesis
+
+If the environment effect is robust, the relative A/B/C pattern should reproduce across materially different pre-registered presentation orders. If it does not, order sensitivity is itself an experimental result and the original environment claim must be narrowed rather than averaged into existence.
+
+This hypothesis is not evidence that an order effect exists. It is a preregistered threat-to-validity check generated during design review.
+
 ## Initial hypothesis
 
 Variant C should reduce routing failures, tool churn, recovery cost, and procedural cognitive load without weakening persistence safety, provided the composite action preserves the existing validation and receipt boundary rather than bypassing it.
