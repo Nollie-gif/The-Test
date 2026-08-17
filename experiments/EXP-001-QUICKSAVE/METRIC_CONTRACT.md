@@ -1,6 +1,6 @@
 # EXP-001 — Metric Coding & Scoring Contract
 
-**Status:** DRAFT FOR HUMAN REVIEW — NOT YET FROZEN  
+**Status:** FROZEN BEFORE CONTROLLED DATA COLLECTION — DOES NOT AUTHORIZE RUN-001
 **Scope:** EXP-001 canonical comparative runs only  
 **Purpose:** define how every declared EXP-001 metric is coded before controlled evidence is collected.
 
@@ -66,7 +66,13 @@ This metric deliberately remains binary because it measures agent claiming behav
 ### completion_time_ms
 Non-negative integer.
 
-Elapsed monotonic time from the frozen `run_started` boundary immediately before the task is exposed to the agent until the first terminal run boundary: authoritative verifier verdict, explicit terminal abort, or frozen timeout. Use the harness monotonic clock, not wall-clock timestamp subtraction. Same timeout policy for all variants.
+Elapsed monotonic time from the frozen `run_started` boundary until the first terminal run boundary.
+
+For EXP-001, `run_started` means the harness monotonic timer established during trial initialization after the durable `trial_started` journal event and before the agent request is built or exposed. The journal event documents the boundary; the monotonic timer is the measurement clock.
+
+The terminal boundary is the first of: authoritative verifier verdict, explicit terminal abort, or frozen timeout. Timing must stop at that first terminal boundary even if later cleanup, verification, receipt writing, or archival work continues.
+
+Use the harness monotonic clock, not wall-clock timestamp subtraction. The same boundary and timeout policy apply to all variants.
 
 ### tool_calls
 Non-negative integer count.
@@ -146,11 +152,35 @@ Boolean or null.
 ### failure_stage
 Controlled string or null.
 
-Use a frozen enumeration of lifecycle stages. Record the earliest stage that terminally prevents authoritative success when the evidence supports that classification. `null` for authoritative success and also when no failure stage can be established without inventing causality; `evidence_status` preserves the observability distinction in the latter case.
+The frozen canonical vocabulary is:
+
+- `agent_interface`
+- `transport`
+- `target_operation`
+- `verification`
+- `receipt_evidence`
+- `run_limit`
+
+Record the earliest allowed lifecycle stage that is supported by evidence as the stage that terminally prevents authoritative success.
+
+`null` is required for authoritative success and also when the available evidence cannot establish one allowed stage without inventing causality.
+
+These are canonical research labels, not raw implementation labels. Existing telemetry labels must never be copied directly merely because their names look similar.
+
+Deterministic mappings are permitted only when terminal evidence supports them:
+
+- terminal `agent_interface` or `tool_arguments` → `agent_interface`
+- verified transport interruption → `transport`
+- `target_commit` → `target_operation`
+- `verification` → `verification`
+- terminal receipt/evidence failure → `receipt_evidence`
+- frozen timeout or model-turn terminal limit → `run_limit`
+
+A generic implementation label such as `api_driver` is insufficient by itself and maps to `null` unless more specific evidence establishes one of the allowed stages.
+
+Earlier recoverable errors do not become `failure_stage` merely because they occurred first. This field identifies the earliest lifecycle stage that becomes terminal under the frozen run procedure, not the first error observed and not the last error observed.
 
 Do not derive stage names from arbitrary exception text.
-
-The exact stage vocabulary must be frozen with the run procedure before RUN-001 unlocks.
 
 ## Evidence-establishment burden
 
@@ -188,7 +218,7 @@ With the planned minimum of 10 runs per variant, descriptive results remain prim
 
 ## Freeze dependencies before RUN-001
 
-Before this contract can become `FROZEN`, the experiment must also freeze:
+This contract is frozen together with the following EXP-001 dependencies. These dependencies must remain unchanged for canonical collection unless a later pre-registered amendment explicitly supersedes them:
 
 1. exact model identity and relevant model settings;
 2. exact task and prompt/instruction packet;
