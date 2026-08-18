@@ -70,7 +70,11 @@ Elapsed monotonic time from the frozen `run_started` boundary until the first te
 
 For EXP-001, `run_started` means the harness monotonic timer established during trial initialization after the durable `trial_started` journal event and before the agent request is built or exposed. The journal event documents the boundary; the monotonic timer is the measurement clock.
 
-The terminal boundary is the first of: authoritative verifier verdict, explicit terminal abort, or frozen timeout. Timing must stop at that first terminal boundary even if later cleanup, verification, receipt writing, or archival work continues.
+The terminal boundary is the first of: the authoritative verifier verdict invoked by the terminal/finalization path, explicit terminal abort, or frozen timeout.
+
+Agent-facing verifier checks performed while the run is still active are non-terminal and do not stop timing. Only the verifier invocation used to close/finalize the run establishes the terminal verifier boundary.
+
+Timing must stop at that first terminal boundary even if later cleanup, receipt writing, archival work, or other post-terminal processing continues.
 
 Use the harness monotonic clock, not wall-clock timestamp subtraction. The same boundary and timeout policy apply to all variants.
 

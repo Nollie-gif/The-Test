@@ -804,6 +804,7 @@ def run_next_trial(
             except Exception as exc:
                 unknown_request_attempts += 1
                 transport_error_kind = _transport_error_kind(exc)
+                trial.mark_terminal_boundary()
                 _emit_driver_event(
                     trial,
                     "api_request_incomplete",
@@ -894,9 +895,11 @@ def run_next_trial(
             terminal_error = (
                 f"model exceeded the pre-registered limit of {config.max_model_turns} API turns"
             )
+            trial.mark_terminal_boundary()
             _emit_driver_event(trial, "driver_stop", stage="model_turn_limit", message=terminal_error)
     except (ApiDriverError, HarnessError) as exc:
         terminal_error = str(exc)
+        trial.mark_terminal_boundary()
         _emit_driver_event(trial, "driver_error", stage="api_driver", message=terminal_error)
 
     return _finalize(
