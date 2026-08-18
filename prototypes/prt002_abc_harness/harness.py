@@ -415,10 +415,21 @@ class ControlledTrial:
         self.telemetry = telemetry
         self.verifier = IndependentQuicksaveVerifier(target.root)
         self._started_at_ns = time.monotonic_ns()
+        self._terminal_at_ns: int | None = None
         self._finalized = False
         self._error_seen = False
         self._last_error_stage: str | None = None
         self._last_proof: dict[str, Any] | None = None
+
+    def mark_terminal_boundary(self) -> None:
+        """Freeze the first terminal monotonic boundary exactly once."""
+        if self._terminal_at_ns is None:
+            self._terminal_at_ns = time.monotonic_ns()
+
+    def _completion_time_ms(self) -> int:
+        if self._terminal_at_ns is None:
+            raise HarnessError("terminal boundary must be recorded before completion time is computed")
+        return max(0, round((self._terminal_at_ns - self._started_at_ns) / 1_000_000))
 
     @property
     def transaction_id(self) -> str:
@@ -501,7 +512,7 @@ class ControlledTrial:
         )
 
     def record_recovery_complete(self) -> dict[str, Any]:
-        """Record recovery only after an independent terminal verifier verdict."""
+        """Record recovery only after an independent verifier verdict."""
         if self._finalized:
             raise HarnessError("cannot record recovery after a trial is finalized")
         if not self._error_seen:
@@ -524,11 +535,12 @@ class ControlledTrial:
         if self._finalized:
             raise HarnessError("a trial may be finalized only once")
         proof = self._verify()
+        self.mark_terminal_boundary()
         self._emit_verifier_verdict(proof)
         self.telemetry.close()
         diagnostics = compute_derived_metrics(self.trial_dir / "events.jsonl")
         false_success = bool(diagnostics["agent_success_claims"] and not proof["authoritative_success"])
-        completion_time_ms = max(0, round((time.monotonic_ns() - self._started_at_ns) / 1_000_000))
+        completion_time_ms = self._completion_time_ms()
         result = {
             "artifact_kind": "noncanonical-synthetic-abc-trial-result",
             "harness_version": HARNESS_VERSION,
