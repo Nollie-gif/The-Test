@@ -512,7 +512,7 @@ class ControlledTrial:
         )
 
     def record_recovery_complete(self) -> dict[str, Any]:
-        """Record recovery only after an independent terminal verifier verdict."""
+        """Record recovery only after an independent verifier verdict."""
         if self._finalized:
             raise HarnessError("cannot record recovery after a trial is finalized")
         if not self._error_seen:

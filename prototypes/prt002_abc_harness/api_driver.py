@@ -873,6 +873,7 @@ def run_next_trial(
                 try:
                     arguments = json.loads(arguments_text)
                 except json.JSONDecodeError as exc:
+                    trial.mark_terminal_boundary()
                     _emit_driver_event(
                         trial,
                         "driver_error",
