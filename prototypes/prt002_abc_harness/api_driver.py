@@ -804,10 +804,11 @@ def run_next_trial(
             except Exception as exc:
                 unknown_request_attempts += 1
                 transport_error_kind = _transport_error_kind(exc)
-                trial.mark_terminal_boundary()
+                terminal_error_elapsed_ns = trial.mark_terminal_error_boundary()
                 _emit_driver_event(
                     trial,
                     "api_request_incomplete",
+                    monotonic_elapsed_ns=terminal_error_elapsed_ns,
                     model_turn=model_turn,
                     request_attempt=request_attempts,
                     request_fingerprint=request_fingerprint,
@@ -873,10 +874,11 @@ def run_next_trial(
                 try:
                     arguments = json.loads(arguments_text)
                 except json.JSONDecodeError as exc:
-                    trial.mark_terminal_boundary()
+                    terminal_error_elapsed_ns = trial.mark_terminal_error_boundary()
                     _emit_driver_event(
                         trial,
                         "driver_error",
+                        monotonic_elapsed_ns=terminal_error_elapsed_ns,
                         stage="tool_arguments",
                         message="model emitted invalid JSON arguments",
                     )
@@ -900,8 +902,14 @@ def run_next_trial(
             _emit_driver_event(trial, "driver_stop", stage="model_turn_limit", message=terminal_error)
     except (ApiDriverError, HarnessError) as exc:
         terminal_error = str(exc)
-        trial.mark_terminal_boundary()
-        _emit_driver_event(trial, "driver_error", stage="api_driver", message=terminal_error)
+        terminal_error_elapsed_ns = trial.mark_terminal_error_boundary()
+        _emit_driver_event(
+            trial,
+            "driver_error",
+            monotonic_elapsed_ns=terminal_error_elapsed_ns,
+            stage="api_driver",
+            message=terminal_error,
+        )
 
     return _finalize(
         trial,

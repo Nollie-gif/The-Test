@@ -420,6 +420,8 @@ class ControlledTrial:
         self._error_seen = False
         self._last_error_stage: str | None = None
         self._last_proof: dict[str, Any] | None = None
+        self._first_recovery_error_at_ns: int | None = None
+        self._recovery_completed_at_ns: int | None = None
 
     def mark_terminal_boundary(self) -> None:
         """Freeze the first terminal monotonic boundary exactly once."""
@@ -430,6 +432,48 @@ class ControlledTrial:
         if self._terminal_at_ns is None:
             raise HarnessError("terminal boundary must be recorded before completion time is computed")
         return max(0, round((self._terminal_at_ns - self._started_at_ns) / 1_000_000))
+
+    def _elapsed_since_start_ns(self, boundary_ns: int) -> int:
+        return max(0, boundary_ns - self._started_at_ns)
+
+    def mark_recovery_error_boundary(self) -> int:
+        """Record one qualifying error while preserving the first recovery start."""
+        boundary_ns = time.monotonic_ns()
+        if self._first_recovery_error_at_ns is None:
+            self._first_recovery_error_at_ns = boundary_ns
+        self._error_seen = True
+        return self._elapsed_since_start_ns(boundary_ns)
+
+    def mark_terminal_error_boundary(self) -> int:
+        """Freeze terminal timing and unrecovered-error timing at one boundary."""
+        if self._terminal_at_ns is None:
+            self._terminal_at_ns = time.monotonic_ns()
+        if self._first_recovery_error_at_ns is None:
+            self._first_recovery_error_at_ns = self._terminal_at_ns
+        self._error_seen = True
+        return self._elapsed_since_start_ns(self._terminal_at_ns)
+
+    def _mark_recovery_complete_boundary(self) -> int:
+        """Freeze the first explicit successful recovery boundary exactly once."""
+        if self._recovery_completed_at_ns is None:
+            self._recovery_completed_at_ns = time.monotonic_ns()
+        return self._elapsed_since_start_ns(self._recovery_completed_at_ns)
+
+    def _recovery_time_ms(self) -> int | None:
+        if self._first_recovery_error_at_ns is None:
+            return 0
+        if self._recovery_completed_at_ns is None:
+            return None
+        return max(
+            0,
+            round(
+                (
+                    self._recovery_completed_at_ns
+                    - self._first_recovery_error_at_ns
+                )
+                / 1_000_000
+            ),
+        )
 
     @property
     def transaction_id(self) -> str:
@@ -521,11 +565,15 @@ class ControlledTrial:
         self._emit_verifier_verdict(proof)
         if not proof["authoritative_success"]:
             return proof
+        recovery_elapsed_ns = self._mark_recovery_complete_boundary()
+        recovery_time_ms = self._recovery_time_ms()
         self.telemetry.emit(
             {
                 "timestamp": now_iso(),
                 "event_type": "recovery_complete",
                 "source": "harness",
+                "monotonic_elapsed_ns": recovery_elapsed_ns,
+                "recovery_time_ms": recovery_time_ms,
             }
         )
         return proof
@@ -539,6 +587,7 @@ class ControlledTrial:
         self._emit_verifier_verdict(proof)
         self.telemetry.close()
         diagnostics = compute_derived_metrics(self.trial_dir / "events.jsonl")
+        diagnostics["recovery_time_ms"] = self._recovery_time_ms()
         false_success = bool(diagnostics["agent_success_claims"] and not proof["authoritative_success"])
         completion_time_ms = self._completion_time_ms()
         result = {
@@ -784,9 +833,11 @@ class ControlledTrial:
         classification: str | None = None,
         data: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        error_elapsed_ns = self.mark_recovery_error_boundary()
         event: dict[str, Any] = {
             "timestamp": now_iso(),
             "event_type": "tool_call",
+            "monotonic_elapsed_ns": error_elapsed_ns,
             "source": "agent",
             "tool": tool,
             "operation": operation,
