@@ -70,6 +70,7 @@ Use the matching file under `templates/` when creating a new record. Do not hand
 - **RSH-001 — Persistence Orchestration Offload** — Tests how much low-level save/routing machinery should be hidden from the agent. → `research/RSH-001-persistence-orchestration-offload.md`
 - **RSH-002 — Context / Temporal Load Offload** — Tests whether compact runtime context and reduced lookup burden improve continuity and semantic initiative. → `research/RSH-002-context-temporal-load.md`
 - **RSH-003 — Backstage / Knowledge Boundary Integrity** — Tests how structured context can preserve knowledge ownership, reveal authority, and hidden/system boundaries. → `research/RSH-003-backstage-knowledge-boundaries.md`
+- **RSH-004 — Agent Trust Boundary / Authority Derivation** — Adversarial study of whether untrusted public text can acquire operational authority; proposes "claim vs. ground-truth re-derivation" in place of the two-plane hypothesis. → `research/RSH-004-agent-trust-boundary.md`
 
 ## Experiments
 
