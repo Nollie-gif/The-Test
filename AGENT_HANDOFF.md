@@ -279,11 +279,12 @@ Read the smallest durable map first. Do not recursively ingest the entire reposi
 
 1. Read `README.md`.
 2. Read `REGISTRY.md`.
-3. Read `RESEARCH_PROTOCOL.md`.
-4. Read this `AGENT_HANDOFF.md`.
-5. Read the top `PRIMARY TAKEOVER MODE` and `CURRENT TAKEOVER BLOCKER` sections before delegating or mutating anything.
-6. For the current runner takeover, compare `main` vs `add-runner` using branch refs, not per-file CommitOIDs.
-7. Inspect only the relevant RSH / EXP / OBS / RUN / PRT / RES records and runner/schema/validator files needed for the current task.
+3. Read `CHANGELOG.md` for a quick, concise view of recent infrastructure/tooling changes — not a substitute for the records `REGISTRY.md` points to.
+4. Read `RESEARCH_PROTOCOL.md`.
+5. Read this `AGENT_HANDOFF.md`.
+6. Read the top `PRIMARY TAKEOVER MODE` and `CURRENT TAKEOVER BLOCKER` sections before delegating or mutating anything.
+7. For the current runner takeover, compare `main` vs `add-runner` using branch refs, not per-file CommitOIDs.
+8. Inspect only the relevant RSH / EXP / OBS / RUN / PRT / RES records and runner/schema/validator files needed for the current task.
 8. Inspect current repository validation/CI before changing structural conventions.
 
 Before consequential changes, report a compact reconstruction:
