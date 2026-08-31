@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from prototypes.prt002_abc_harness import canonical_export as canonical_export_module
 from prototypes.prt001_controlled_quicksave.common import digest
 from prototypes.prt002_abc_harness.api_driver import (
     DISPOSABLE_PILOT_CONFIG,
@@ -128,6 +129,30 @@ class CrashTransport:
         raise KeyboardInterrupt("synthetic hard stop")
 
 
+class TurnLimitTransport:
+    def __init__(self):
+        self.counter = 0
+
+    def create(self, _payload):
+        self.counter += 1
+        return {
+            "id": f"resp-limit-export-{self.counter}",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": f"call-limit-export-{self.counter}",
+                    "name": "read_prepared_transaction",
+                    "arguments": "{}",
+                }
+            ],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+
 def make_batch(tmp_path: Path, *, config=None):
     batch = create_exp001_api_batch(
         tmp_path / "external",
@@ -164,6 +189,21 @@ def archived_success_batch(tmp_path: Path, *, config=None):
             )
         assert outcome.trial_status == "COMPLETE"
         assert outcome.result["verifier_proof"]["authoritative_success"] is True
+
+    archive_external_batch(batch.batch_dir)
+    return batch
+
+
+def archived_finalized_failure_batch(tmp_path: Path):
+    batch = make_batch(tmp_path)
+
+    outcome = run_exp001_next(batch, TurnLimitTransport())
+    assert outcome.trial_status == "INCOMPLETE"
+    assert outcome.result["verifier_proof"]["authoritative_success"] is False
+
+    for _ in batch.trial_specs[1:]:
+        outcome = run_exp001_next(batch, SuccessfulTransport())
+        assert outcome.trial_status == "COMPLETE"
 
     archive_external_batch(batch.batch_dir)
     return batch
@@ -474,3 +514,73 @@ def test_promotion_requires_explicit_confirmation(tmp_path):
             runs_root=tmp_path / "runs",
             confirm_promotion=False,
         )
+
+
+def test_finalized_negative_trial_is_canonical_exportable(tmp_path):
+    batch = archived_finalized_failure_batch(tmp_path)
+    spec = batch.trial_specs[0]
+
+    preview = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=spec.trial_id,
+        proposed_run_id="RUN-999",
+    )
+
+    candidate = preview["candidate"]
+    assert candidate["evidence_status"] == "established"
+    assert candidate["authoritative_success"] is False
+    assert candidate["final_state_correct"] is False
+    assert candidate["failure_stage"] == "run_limit"
+
+
+def test_promotion_does_not_overwrite_concurrent_destination(
+    tmp_path,
+    monkeypatch,
+):
+    batch = archived_success_batch(tmp_path)
+    spec = batch.trial_specs[0]
+
+    preview = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=spec.trial_id,
+        proposed_run_id="RUN-999",
+    )
+
+    runs_root = tmp_path / "canonical-runs"
+    destination = runs_root / "RUN-999.json"
+    real_link = canonical_export_module.os.link
+    competing = {
+        "run_id": "RUN-999",
+        "concurrent_writer": True,
+    }
+
+    def racing_link(source, target):
+        destination.write_text(
+            json.dumps(competing),
+            encoding="utf-8",
+        )
+        return real_link(source, target)
+
+    monkeypatch.setattr(
+        canonical_export_module.os,
+        "link",
+        racing_link,
+    )
+
+    with pytest.raises(
+        CanonicalExportError,
+        match="refusing to overwrite",
+    ):
+        promote_canonical_run(
+            batch.batch_dir,
+            trial_id=spec.trial_id,
+            run_id="RUN-999",
+            approved_candidate_digest=preview["candidate_digest"],
+            approval_reference="TEST-APPROVAL-RACE",
+            runs_root=runs_root,
+            confirm_promotion=True,
+        )
+
+    assert json.loads(
+        destination.read_text(encoding="utf-8")
+    ) == competing

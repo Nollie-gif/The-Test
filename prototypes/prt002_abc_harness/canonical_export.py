@@ -608,25 +608,40 @@ def _coded_evidence_from_archived_trial(
             "expected-state payload reference is inconsistent"
         )
 
-    if outcome.get("trial_status") != "COMPLETE":
+    trial_status = outcome.get("trial_status")
+    receipt_status = driver_receipt.get("trial_status")
+
+    if trial_status not in {"COMPLETE", "INCOMPLETE"}:
         raise CanonicalExportError(
-            "only COMPLETE terminal trials are promotable"
+            "trial does not have a finalized terminal status"
         )
 
-    if driver_receipt.get("trial_status") != "COMPLETE":
+    if receipt_status != trial_status:
         raise CanonicalExportError(
-            "driver receipt does not establish COMPLETE terminal state"
+            "driver receipt terminal status conflicts with outcome"
         )
 
-    if outcome.get("terminal_error") is not None:
+    terminal_error = outcome.get("terminal_error")
+    receipt_terminal_error = driver_receipt.get("terminal_error")
+
+    if terminal_error != receipt_terminal_error:
         raise CanonicalExportError(
-            "COMPLETE trial cannot contain a terminal driver error"
+            "driver receipt terminal error conflicts with outcome"
         )
 
-    if driver_receipt.get("terminal_error") is not None:
-        raise CanonicalExportError(
-            "COMPLETE receipt cannot contain a terminal driver error"
-        )
+    if trial_status == "COMPLETE":
+        if terminal_error is not None:
+            raise CanonicalExportError(
+                "COMPLETE trial cannot contain a terminal driver error"
+            )
+    else:
+        if (
+            not isinstance(terminal_error, str)
+            or not terminal_error.strip()
+        ):
+            raise CanonicalExportError(
+                "INCOMPLETE finalized trial must record its terminal driver error"
+            )
 
     exact_result_fields = {
         "artifact_kind": "noncanonical-synthetic-abc-trial-result",
@@ -700,6 +715,16 @@ def _coded_evidence_from_archived_trial(
         raise CanonicalExportError(
             "verifier proof is internally inconsistent"
         )
+
+    if trial_status == "INCOMPLETE":
+        if authoritative_success is not False:
+            raise CanonicalExportError(
+                "only finalized negative INCOMPLETE trials are promotable"
+            )
+        if final_state_correct is not False:
+            raise CanonicalExportError(
+                "finalized negative INCOMPLETE trial must establish incorrect final state"
+            )
 
     completion_time_ms = result.get("completion_time_ms")
     if (
@@ -870,9 +895,10 @@ def build_canonical_run_candidate(
             "archived evidence report does not contain the requested trial"
         )
 
-    if report_trial.get("evidence_state") != "COMPLETE":
+    evidence_state = report_trial.get("evidence_state")
+    if evidence_state not in {"COMPLETE", "INCOMPLETE"}:
         raise CanonicalExportError(
-            "requested trial is not a COMPLETE terminal trial"
+            "requested trial is not a finalized promotable terminal trial"
         )
 
     coded = _coded_evidence_from_archived_trial(
@@ -926,14 +952,14 @@ def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
         temporary_path = Path(temporary.name)
 
     try:
-        if path.exists() or path.is_symlink():
+        try:
+            os.link(temporary_path, path)
+        except FileExistsError as exc:
             raise CanonicalExportError(
                 f"refusing to overwrite canonical artifact: {path.name}"
-            )
-        os.replace(temporary_path, path)
-    except Exception:
+            ) from exc
+    finally:
         temporary_path.unlink(missing_ok=True)
-        raise
 
 
 def _reject_duplicate_run_id(
