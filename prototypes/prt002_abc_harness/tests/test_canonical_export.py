@@ -153,6 +153,37 @@ class TurnLimitTransport:
         }
 
 
+class MalformedArgumentsTransport:
+    def create(self, _payload):
+        return {
+            "id": "resp-malformed-export",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call-malformed-export",
+                    "name": "read_prepared_transaction",
+                    "arguments": "{",
+                }
+            ],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15,
+            },
+        }
+
+
+class PartialUsageTransport(SuccessfulTransport):
+    def create(self, payload):
+        response = super().create(payload)
+        if self.counter == 2:
+            response = dict(response)
+            usage = dict(response["usage"])
+            usage.pop("input_tokens")
+            response["usage"] = usage
+        return response
+
+
 def make_batch(tmp_path: Path, *, config=None):
     batch = create_exp001_api_batch(
         tmp_path / "external",
@@ -584,3 +615,118 @@ def test_promotion_does_not_overwrite_concurrent_destination(
     assert json.loads(
         destination.read_text(encoding="utf-8")
     ) == competing
+
+
+def test_success_requires_complete_authoritative_proof(tmp_path):
+    batch = make_batch(tmp_path)
+
+    for _ in batch.trial_specs:
+        outcome = run_exp001_next(batch, SuccessfulTransport())
+        assert outcome.trial_status == "COMPLETE"
+
+    spec = batch.trial_specs[0]
+    trial_dir = batch.trial_dir(spec)
+
+    result_path = trial_dir / "result.json"
+    receipt_path = trial_dir / "api-driver-receipt.json"
+
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    proof = result["verifier_proof"]
+
+    assert proof["authoritative_success"] is True
+
+    proof["receipt_complete"] = False
+    proof.pop("target_id", None)
+    proof.pop("observed_generation", None)
+    proof.pop("observed_state_digest", None)
+
+    result_path.write_text(
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+    receipt = json.loads(
+        receipt_path.read_text(encoding="utf-8")
+    )
+    receipt["result_digest"] = digest(result)
+    receipt["verifier_proof_digest"] = digest(proof)
+    receipt_path.write_text(
+        json.dumps(
+            receipt,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+    archive_external_batch(batch.batch_dir)
+
+    with pytest.raises(
+        CanonicalExportError,
+        match="verifier proof",
+    ):
+        build_canonical_run_candidate(
+            batch.batch_dir,
+            trial_id=spec.trial_id,
+            proposed_run_id="RUN-999",
+        )
+
+
+def test_specific_driver_failure_survives_generic_wrapper(tmp_path):
+    batch = make_batch(tmp_path)
+
+    outcome = run_exp001_next(
+        batch,
+        MalformedArgumentsTransport(),
+    )
+    assert outcome.trial_status == "INCOMPLETE"
+    assert (
+        outcome.result["verifier_proof"]["authoritative_success"]
+        is False
+    )
+
+    for _ in batch.trial_specs[1:]:
+        outcome = run_exp001_next(batch, SuccessfulTransport())
+        assert outcome.trial_status == "COMPLETE"
+
+    archive_external_batch(batch.batch_dir)
+
+    preview = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=batch.trial_specs[0].trial_id,
+        proposed_run_id="RUN-999",
+    )
+
+    assert preview["candidate"]["failure_stage"] == "agent_interface"
+
+
+def test_partial_input_token_usage_maps_context_volume_to_null(
+    tmp_path,
+):
+    batch = make_batch(tmp_path)
+
+    outcome = run_exp001_next(
+        batch,
+        PartialUsageTransport(),
+    )
+    assert outcome.trial_status == "COMPLETE"
+
+    for _ in batch.trial_specs[1:]:
+        outcome = run_exp001_next(batch, SuccessfulTransport())
+        assert outcome.trial_status == "COMPLETE"
+
+    archive_external_batch(batch.batch_dir)
+
+    preview = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=batch.trial_specs[0].trial_id,
+        proposed_run_id="RUN-999",
+    )
+
+    assert preview["candidate"]["context_volume"] is None

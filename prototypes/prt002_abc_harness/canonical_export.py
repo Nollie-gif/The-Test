@@ -436,7 +436,9 @@ def _canonical_failure_stage(
                 return "target_operation"
             if stage == "verification":
                 return "verification"
-            return None
+            # Generic driver wrappers are not the root cause.
+            # Keep scanning backward for an earlier specific stage.
+            continue
 
     tool_calls = [
         event
@@ -695,6 +697,33 @@ def _coded_evidence_from_archived_trial(
             "verifier expected-payload reference is inconsistent"
         )
 
+    independent_proof = IndependentQuicksaveVerifier(
+        trial_dir / "target"
+    ).verify(spec.transaction_id)
+
+    authoritative_proof_fields = (
+        "verification_version",
+        "verification_scope",
+        "authoritative_for_scope",
+        "verifier",
+        "target_id",
+        "transaction_id",
+        "expected_generation",
+        "observed_generation",
+        "expected_payload_digest",
+        "observed_state_digest",
+        "authoritative_success",
+        "final_state_correct",
+        "receipt_complete",
+    )
+
+    for field in authoritative_proof_fields:
+        if proof.get(field) != independent_proof.get(field):
+            raise CanonicalExportError(
+                f"verifier proof {field} conflicts with "
+                "independent archived verification"
+            )
+
     authoritative_success = proof.get("authoritative_success")
     final_state_correct = proof.get("final_state_correct")
 
@@ -778,15 +807,44 @@ def _coded_evidence_from_archived_trial(
         )
 
     usage = driver_receipt.get("usage")
+    response_events = [
+        event
+        for event in events
+        if event.get("event_type") == "api_response_observed"
+    ]
+
     context_volume: int | None = None
-    if isinstance(usage, Mapping):
-        input_tokens = usage.get("input_tokens")
+    observed_input_tokens: list[int] = []
+    complete_usage = bool(response_events)
+
+    for event in response_events:
+        event_usage = event.get("usage")
+        if not isinstance(event_usage, Mapping):
+            complete_usage = False
+            break
+
+        input_tokens = event_usage.get("input_tokens")
         if (
-            isinstance(input_tokens, int)
-            and not isinstance(input_tokens, bool)
-            and input_tokens >= 0
+            not isinstance(input_tokens, int)
+            or isinstance(input_tokens, bool)
+            or input_tokens < 0
         ):
-            context_volume = input_tokens
+            complete_usage = False
+            break
+
+        observed_input_tokens.append(input_tokens)
+
+    if complete_usage and isinstance(usage, Mapping):
+        recorded_input_tokens = usage.get("input_tokens")
+        summed_input_tokens = sum(observed_input_tokens)
+
+        if (
+            isinstance(recorded_input_tokens, int)
+            and not isinstance(recorded_input_tokens, bool)
+            and recorded_input_tokens >= 0
+            and recorded_input_tokens == summed_input_tokens
+        ):
+            context_volume = summed_input_tokens
 
     failure_stage = _canonical_failure_stage(
         events,
