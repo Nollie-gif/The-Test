@@ -730,3 +730,49 @@ def test_partial_input_token_usage_maps_context_volume_to_null(
     )
 
     assert preview["candidate"]["context_volume"] is None
+
+def test_same_source_trial_cannot_be_promoted_twice(tmp_path):
+    batch = archived_success_batch(tmp_path)
+    spec = batch.trial_specs[0]
+    runs_root = tmp_path / "canonical-runs"
+
+    first = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=spec.trial_id,
+        proposed_run_id="RUN-998",
+    )
+    promote_canonical_run(
+        batch.batch_dir,
+        trial_id=spec.trial_id,
+        run_id="RUN-998",
+        approved_candidate_digest=first["candidate_digest"],
+        approval_reference="TEST-APPROVAL-SOURCE-998",
+        runs_root=runs_root,
+        confirm_promotion=True,
+    )
+
+    second = build_canonical_run_candidate(
+        batch.batch_dir,
+        trial_id=spec.trial_id,
+        proposed_run_id="RUN-999",
+    )
+
+    with pytest.raises(CanonicalExportError, match="source trial"):
+        promote_canonical_run(
+            batch.batch_dir,
+            trial_id=spec.trial_id,
+            run_id="RUN-999",
+            approved_candidate_digest=second["candidate_digest"],
+            approval_reference="TEST-APPROVAL-SOURCE-999",
+            runs_root=runs_root,
+            confirm_promotion=True,
+        )
+
+
+def test_unproven_negative_failure_stage_stays_null():
+    assert canonical_export_module._canonical_failure_stage([], False) is None
+
+
+def test_run_000_is_reserved():
+    with pytest.raises(CanonicalExportError, match="RUN-000"):
+        canonical_export_module._require_run_id("RUN-000")

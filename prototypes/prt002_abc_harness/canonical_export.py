@@ -118,6 +118,10 @@ def _require_run_id(value: object) -> str:
         raise CanonicalExportError(
             "proposed run_id must match RUN-[0-9]{3,}"
         )
+    if value == "RUN-000":
+        raise CanonicalExportError(
+            "RUN-000 is reserved for the non-evidentiary fixture"
+        )
     return value
 
 
@@ -457,9 +461,9 @@ def _canonical_failure_stage(
             if stage == "verification":
                 return "verification"
 
-    # A complete negative authoritative terminal verifier verdict establishes
-    # failure at the proof boundary when no earlier terminal stage is proven.
-    return "verification"
+    # A negative authoritative verdict proves outcome, not causal stage.
+    # If no supported lifecycle stage is evidenced, preserve UNKNOWN/null.
+    return None
 
 
 def _validate_recovery_metric(
@@ -884,6 +888,8 @@ def _coded_evidence_from_archived_trial(
         # terminal receipt defined by METRIC_CONTRACT.md.
         "receipt_complete": None,
         "notes": (
+            f"source_batch_id={batch.batch_id};"
+            f"source_trial_id={spec.trial_id}; "
             "Mapped from validated immutable archived EXP-001 evidence."
         ),
     }
@@ -1048,6 +1054,37 @@ def _reject_duplicate_run_id(
             )
 
 
+def _reject_duplicate_source_trial(
+    runs_root: Path,
+    *,
+    source_batch_id: str,
+    source_trial_id: str,
+) -> None:
+    if not runs_root.exists():
+        return
+
+    marker = (
+        f"source_batch_id={source_batch_id};"
+        f"source_trial_id={source_trial_id};"
+    )
+
+    for path in runs_root.glob("RUN-*.json"):
+        if path.is_symlink() or not path.is_file():
+            raise CanonicalExportError(
+                "runs_root contains an unsafe canonical artifact"
+            )
+
+        existing = _read_object(
+            path,
+            label=f"existing canonical artifact {path.name}",
+        )
+        notes = existing.get("notes")
+        if isinstance(notes, str) and notes.startswith(marker):
+            raise CanonicalExportError(
+                "duplicate source trial promotion refused"
+            )
+
+
 def promote_canonical_run(
     batch_dir: Path,
     *,
@@ -1105,6 +1142,11 @@ def promote_canonical_run(
         )
 
     _reject_duplicate_run_id(runs_root, run_id)
+    _reject_duplicate_source_trial(
+        runs_root,
+        source_batch_id=preview["source_batch_id"],
+        source_trial_id=preview["source_trial_id"],
+    )
 
     destination = runs_root / f"{run_id}.json"
     _write_json_new(destination, candidate)
