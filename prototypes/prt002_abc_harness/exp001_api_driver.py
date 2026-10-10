@@ -21,6 +21,7 @@ from prototypes.prt001_controlled_quicksave.common import digest
 
 from .api_driver import (
     DRIVER_REGISTRATION_FILENAME,
+    DRIVER_VERSION,
     ApiDriverError,
     DriverConfig,
     HttpResponsesTransport,
@@ -31,6 +32,10 @@ from .api_driver import (
     load_api_batch,
     plan_next_trial,
     run_next_trial,
+)
+from .canonical_source import (
+    CANONICAL_PROMOTION_SOURCE_FILENAME,
+    build_exp001_promotion_source,
 )
 from .completion_cycle import FROZEN_MODEL_SETTINGS
 from .research_cycle_batch import RESEARCH_CYCLE_MODE, create_research_cycle_batch
@@ -158,10 +163,40 @@ def inspect_exp001_interrupted(batch) -> dict[str, Any]:
 
 
 def run_exp001_next(batch, transport):
-    """Execute exactly one pre-registered trial through an explicitly supplied transport."""
+    """Execute one frozen EXP-001 trial and freeze its promotion source."""
 
     _require_frozen_baseline()
-    return run_next_trial(batch, transport, config=EXP001_DRIVER_CONFIG)
+    outcome = run_next_trial(
+        batch,
+        transport,
+        config=EXP001_DRIVER_CONFIG,
+    )
+
+    trial_id = outcome.result.get("trial_id")
+    spec = next(
+        (
+            candidate
+            for candidate in batch.trial_specs
+            if candidate.trial_id == trial_id
+        ),
+        None,
+    )
+    if spec is None:
+        raise ApiDriverError(
+            "finalized EXP-001 trial identity is not preregistered"
+        )
+
+    packet = build_exp001_promotion_source(
+        batch=batch,
+        spec=spec,
+        outcome=outcome,
+        driver_version=DRIVER_VERSION,
+    )
+    _write_json_new(
+        batch.trial_dir(spec) / CANONICAL_PROMOTION_SOURCE_FILENAME,
+        packet,
+    )
+    return outcome
 
 
 def _build_parser() -> argparse.ArgumentParser:

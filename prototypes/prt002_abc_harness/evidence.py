@@ -29,7 +29,9 @@ from .api_driver import (
     DRIVER_VERSION,
     load_api_batch,
 )
+from .canonical_source import CANONICAL_PROMOTION_SOURCE_FILENAME
 from .harness import DISPOSABLE_SINGLE_TRIAL_MODE, PreregisteredBatch, TrialSpec
+from .research_cycle_batch import RESEARCH_CYCLE_MODE
 
 
 EVIDENCE_MANIFEST_FILENAME = "evidence-manifest.json"
@@ -45,6 +47,7 @@ _ALLOWED_TRIAL_CHILDREN = {
     "trial.json",
     "events.jsonl",
     "target",
+    CANONICAL_PROMOTION_SOURCE_FILENAME,
     *_FINAL_ARTIFACTS,
 }
 _FORBIDDEN_EVIDENCE_KEYS = {
@@ -649,7 +652,14 @@ def _expected_archive_paths(batch: PreregisteredBatch) -> list[str]:
         paths.append(PILOT_APPROVAL_PROOF_FILENAME)
     for spec in batch.trial_specs:
         trial_root = f"trials/{spec.storage_id}"
-        paths.extend(f"{trial_root}/{filename}" for filename in ("trial.json", "events.jsonl", *_FINAL_ARTIFACTS))
+        paths.extend(
+            f"{trial_root}/{filename}"
+            for filename in ("trial.json", "events.jsonl", *_FINAL_ARTIFACTS)
+        )
+        if batch.manifest.get("batch_mode") == RESEARCH_CYCLE_MODE:
+            paths.append(
+                f"{trial_root}/{CANONICAL_PROMOTION_SOURCE_FILENAME}"
+            )
     return paths
 
 
