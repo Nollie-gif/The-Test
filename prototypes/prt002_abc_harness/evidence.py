@@ -29,7 +29,11 @@ from .api_driver import (
     DRIVER_VERSION,
     load_api_batch,
 )
-from .canonical_source import CANONICAL_PROMOTION_SOURCE_FILENAME
+from .canonical_source import (
+    CANONICAL_PROMOTION_SOURCE_FILENAME,
+    CanonicalSourceError,
+    validate_exp001_promotion_source,
+)
 from .harness import DISPOSABLE_SINGLE_TRIAL_MODE, PreregisteredBatch, TrialSpec
 from .research_cycle_batch import RESEARCH_CYCLE_MODE
 
@@ -323,6 +327,18 @@ def _trial_report(batch: PreregisteredBatch, spec: TrialSpec) -> tuple[dict[str,
             events=events,
             errors=errors,
         )
+        if batch.manifest.get("batch_mode") == RESEARCH_CYCLE_MODE:
+            try:
+                validate_exp001_promotion_source(
+                    batch=batch,
+                    spec=spec,
+                    driver_version=DRIVER_VERSION,
+                )
+            except CanonicalSourceError as exc:
+                errors.append(
+                    f"{CANONICAL_PROMOTION_SOURCE_FILENAME}: {exc}"
+                )
+
         report["evidence_state"] = trial_status or "INVALID"
         return report, errors
 

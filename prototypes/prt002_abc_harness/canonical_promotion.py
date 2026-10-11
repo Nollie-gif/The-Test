@@ -519,6 +519,11 @@ def build_canonical_candidate_preview(
             "requested trial is not terminal archived evidence"
         )
 
+    if report_trial.get("api_request_incomplete_count", 0):
+        raise CanonicalPromotionError(
+            "ambiguous request outcome is not promotable"
+        )
+
     packet_path = (
         batch.trial_dir(spec)
         / CANONICAL_PROMOTION_SOURCE_FILENAME

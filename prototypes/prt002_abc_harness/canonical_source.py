@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping
 
 from prototypes.prt001_controlled_quicksave.common import digest
@@ -240,3 +241,61 @@ def build_exp001_promotion_source(
 
     packet["packet_digest"] = digest(packet)
     return packet
+
+
+
+def validate_exp001_promotion_source(
+    *,
+    batch,
+    spec,
+    driver_version: str,
+) -> None:
+    trial_dir = batch.trial_dir(spec)
+    packet_path = trial_dir / CANONICAL_PROMOTION_SOURCE_FILENAME
+
+    try:
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+        outcome = json.loads(
+            (trial_dir / "api-driver-outcome.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CanonicalSourceError(
+            "promotion source or terminal evidence is unreadable"
+        ) from exc
+
+    if not isinstance(packet, dict):
+        raise CanonicalSourceError("promotion source must be an object")
+    if not isinstance(result, dict) or not isinstance(outcome, dict):
+        raise CanonicalSourceError("terminal evidence must contain objects")
+
+    recorded_digest = packet.get("packet_digest")
+    unsigned = dict(packet)
+    unsigned.pop("packet_digest", None)
+
+    if (
+        not isinstance(recorded_digest, str)
+        or recorded_digest != digest(unsigned)
+    ):
+        raise CanonicalSourceError("promotion source digest is invalid")
+
+    usage = outcome.get("usage")
+    if not isinstance(usage, Mapping):
+        raise CanonicalSourceError("driver outcome usage is invalid")
+
+    rebuilt = build_exp001_promotion_source(
+        batch=batch,
+        spec=spec,
+        outcome=SimpleNamespace(
+            result=result,
+            terminal_error=outcome.get("terminal_error"),
+            transport_error_kind=outcome.get("transport_error_kind"),
+            usage=usage,
+        ),
+        driver_version=driver_version,
+    )
+
+    if packet != rebuilt:
+        raise CanonicalSourceError(
+            "promotion source does not match terminal trial evidence"
+        )

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -162,10 +163,64 @@ def inspect_exp001_interrupted(batch) -> dict[str, Any]:
     return inspect_interrupted_trials(batch, config=EXP001_DRIVER_CONFIG)
 
 
+def _recover_missing_promotion_sources(batch) -> None:
+    """Recover a finalized trial packet before another trial may advance."""
+
+    for spec in batch.trial_specs:
+        trial_dir = batch.trial_dir(spec)
+        packet_path = trial_dir / CANONICAL_PROMOTION_SOURCE_FILENAME
+
+        if packet_path.exists():
+            continue
+
+        result_path = trial_dir / "result.json"
+        outcome_path = trial_dir / "api-driver-outcome.json"
+        receipt_path = trial_dir / "api-driver-receipt.json"
+
+        if not all(
+            path.is_file()
+            for path in (result_path, outcome_path, receipt_path)
+        ):
+            continue
+
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            outcome = json.loads(outcome_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ApiDriverError(
+                "finalized EXP-001 evidence cannot reconstruct its promotion source"
+            ) from exc
+
+        if not isinstance(result, dict) or not isinstance(outcome, dict):
+            raise ApiDriverError(
+                "finalized EXP-001 evidence is invalid"
+            )
+
+        usage = outcome.get("usage")
+        if not isinstance(usage, Mapping):
+            raise ApiDriverError(
+                "finalized EXP-001 outcome usage is invalid"
+            )
+
+        packet = build_exp001_promotion_source(
+            batch=batch,
+            spec=spec,
+            outcome=SimpleNamespace(
+                result=result,
+                terminal_error=outcome.get("terminal_error"),
+                transport_error_kind=outcome.get("transport_error_kind"),
+                usage=usage,
+            ),
+            driver_version=DRIVER_VERSION,
+        )
+        _write_json_new(packet_path, packet)
+
+
 def run_exp001_next(batch, transport):
     """Execute one frozen EXP-001 trial and freeze its promotion source."""
 
     _require_frozen_baseline()
+    _recover_missing_promotion_sources(batch)
     outcome = run_next_trial(
         batch,
         transport,

@@ -416,3 +416,119 @@ def test_promotion_rebuilds_exact_candidate_from_archived_source(tmp_path):
     assert result["promotion_status"] == "PROMOTED_EXACTLY_ONCE"
     assert result["run_id"] == "RUN-999"
     assert (runs_root / "RUN-999.json").is_file()
+
+
+class OfflineTimeoutTransport:
+    def create(self, _payload):
+        raise TimeoutError("synthetic transport timeout")
+
+
+def test_transport_unknown_trial_cannot_be_promoted(tmp_path):
+    from prototypes.prt002_abc_harness.canonical_promotion import (
+        build_canonical_candidate_preview,
+    )
+    from prototypes.prt002_abc_harness.evidence import archive_external_batch
+    from prototypes.prt002_abc_harness.exp001_api_driver import (
+        create_exp001_api_batch,
+        run_exp001_next,
+    )
+
+    batch = create_exp001_api_batch(
+        tmp_path / "transport-unknown",
+        operator="pytest",
+        source_revision="test-source-revision",
+        driver_source_revision="test-driver-revision",
+    )
+
+    outcome = run_exp001_next(batch, OfflineTimeoutTransport())
+    assert outcome.trial_status == "INCOMPLETE"
+    assert outcome.unknown_request_attempts == 1
+
+    for _ in batch.trial_specs[1:]:
+        run_exp001_next(batch, OfflineSuccessTransport())
+
+    archive_external_batch(batch.batch_dir)
+
+    spec = batch.trial_specs[0]
+
+    with pytest.raises(CanonicalPromotionError):
+        build_canonical_candidate_preview(
+            batch.batch_dir,
+            trial_id=spec.trial_id,
+            proposed_run_id="RUN-999",
+        )
+
+
+def test_tampered_promotion_source_cannot_be_archived(tmp_path):
+    import json
+
+    from prototypes.prt002_abc_harness.evidence import (
+        EvidenceValidationError,
+        archive_external_batch,
+    )
+    from prototypes.prt002_abc_harness.exp001_api_driver import (
+        create_exp001_api_batch,
+        run_exp001_next,
+    )
+
+    batch = create_exp001_api_batch(
+        tmp_path / "tampered-source",
+        operator="pytest",
+        source_revision="test-source-revision",
+        driver_source_revision="test-driver-revision",
+    )
+
+    for _ in batch.trial_specs:
+        run_exp001_next(batch, OfflineSuccessTransport())
+
+    spec = batch.trial_specs[0]
+    packet_path = (
+        batch.trial_dir(spec)
+        / "canonical-promotion-source.json"
+    )
+
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["canonical_fields"]["tool_calls"] += 99
+
+    unsigned = dict(packet)
+    unsigned.pop("packet_digest", None)
+    packet["packet_digest"] = digest(unsigned)
+
+    packet_path.write_text(
+        json.dumps(packet, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(EvidenceValidationError):
+        archive_external_batch(batch.batch_dir)
+
+
+def test_missing_promotion_source_is_recovered_before_next_trial(tmp_path):
+    from prototypes.prt002_abc_harness.exp001_api_driver import (
+        create_exp001_api_batch,
+        run_exp001_next,
+    )
+
+    batch = create_exp001_api_batch(
+        tmp_path / "missing-source-recovery",
+        operator="pytest",
+        source_revision="test-source-revision",
+        driver_source_revision="test-driver-revision",
+    )
+
+    first = run_exp001_next(batch, OfflineSuccessTransport())
+    assert first.trial_status == "COMPLETE"
+
+    first_spec = batch.trial_specs[0]
+    first_packet = (
+        batch.trial_dir(first_spec)
+        / "canonical-promotion-source.json"
+    )
+    assert first_packet.is_file()
+
+    first_packet.unlink()
+
+    second = run_exp001_next(batch, OfflineSuccessTransport())
+
+    assert first_packet.is_file()
+    assert second.result["trial_id"] == batch.trial_specs[1].trial_id
